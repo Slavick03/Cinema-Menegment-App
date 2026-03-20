@@ -43,14 +43,30 @@ export const getMovieDetails = async (id) => {
   return request(() => axios.get(`/movie/${id}`), "Unable to fetch movie");
 };
 
+export const addMovieReview = async (movieId, data) => {
+  return request(
+    () =>
+      axios.post(`/movie/${movieId}/reviews`, {
+        user: localStorage.getItem("userId"),
+        rating: data.rating,
+        comment: data.comment,
+      }),
+    "Unable to save review"
+  );
+};
+
 export const newBooking = async (data) => {
   return request(
     () =>
       axios.post("/booking", {
-      movie: data.movie,
-      seatNumber: data.seatNumber,
-      date: data.date,
-      user: localStorage.getItem("userId"),
+        movie: data.movie,
+        seatNumber: data.seatNumber,
+        date: data.date,
+        customerFirstName: data.customerFirstName,
+        customerLastName: data.customerLastName,
+        phoneNumber: data.phoneNumber,
+        paymentMethod: data.paymentMethod,
+        user: localStorage.getItem("userId"),
       }),
     "Unable to create booking"
   );
@@ -94,6 +110,7 @@ export const addMovie = async (data) => {
         posterUrl: data.posterUrl,
         featured: data.featured,
         actors: data.actors,
+        ticketPrice: data.ticketPrice,
         admin: localStorage.getItem("adminId"),
         },
         {
@@ -103,6 +120,42 @@ export const addMovie = async (data) => {
         }
       ),
     "Unable to add movie"
+  );
+};
+
+export const updateMovie = async (id, data) => {
+  return request(
+    () =>
+      axios.put(
+        `/movie/${id}`,
+        {
+          title: data.title,
+          description: data.description,
+          releaseDate: data.releaseDate,
+          posterUrl: data.posterUrl,
+          featured: data.featured,
+          actors: data.actors,
+          ticketPrice: data.ticketPrice,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      ),
+    "Unable to update movie"
+  );
+};
+
+export const deleteMovie = async (id) => {
+  return request(
+    () =>
+      axios.delete(`/movie/${id}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }),
+    "Unable to delete movie"
   );
 };
 

@@ -204,6 +204,9 @@ const HomePage = () => {
                 title={movie.title}
                 posterUrl={movie.posterUrl}
                 releaseDate={movie.releaseDate}
+                ticketPrice={movie.ticketPrice}
+                averageRating={movie.averageRating}
+                ratingsCount={movie.ratingsCount}
                 key={movie._id}
               />
             ))}

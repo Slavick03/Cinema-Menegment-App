@@ -130,7 +130,8 @@ export const getBookingsOfUser = async (req, res, next) => {
   try {
     bookings = await Bookings.find({ user: id })
       .populate("movie")
-      .populate("user");
+      .populate("user")
+      .sort({ createdAt: -1 });
   } catch (err) {
     return res.status(500).json({ message: "Unable to get bookings" });
   }

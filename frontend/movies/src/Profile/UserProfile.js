@@ -11,10 +11,10 @@ import {
   IconButton,
   List,
   ListItem,
-  ListItemText,
   Typography,
 } from "@mui/material";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import VirtualTicket from "../components/Bookings/VirtualTicket";
 const UserProfile = () => {
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState();
@@ -115,29 +115,29 @@ const UserProfile = () => {
                       marginY: 1,
                       borderRadius: 4,
                       flexWrap: "wrap",
+                      display: "block",
                     }}
                   >
-                    <ListItemText
-                      sx={{ margin: 1, minWidth: 180, textAlign: "left" }}
-                    >
-                      Movie: {booking.movie.title}
-                    </ListItemText>
-                    <ListItemText
-                      sx={{ margin: 1, minWidth: 120, textAlign: "left" }}
-                    >
-                      Seat: {booking.seatNumber}
-                    </ListItemText>
-                    <ListItemText
-                      sx={{ margin: 1, minWidth: 170, textAlign: "left" }}
-                    >
-                      Date: {new Date(booking.date).toDateString()}
-                    </ListItemText>
-                    <IconButton
-                      onClick={() => handleDelete(booking._id)}
-                      color="error"
-                    >
-                      <DeleteForeverIcon />
-                    </IconButton>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography
+                        sx={{
+                          color: "#6dd3ff",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.16em",
+                          fontSize: "0.76rem",
+                          fontWeight: 800,
+                        }}
+                      >
+                        Booking
+                      </Typography>
+                      <IconButton
+                        onClick={() => handleDelete(booking._id)}
+                        color="error"
+                      >
+                        <DeleteForeverIcon />
+                      </IconButton>
+                    </Box>
+                    <VirtualTicket booking={booking} showDownload />
                   </ListItem>
                 ))}
               </List>

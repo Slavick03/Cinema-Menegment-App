@@ -58,9 +58,12 @@ const Movies = () => {
         {movies.map((movie) => (
           <MovieItem
             key={movie._id}
+            averageRating={movie.averageRating}
             id={movie._id}
             posterUrl={movie.posterUrl}
             releaseDate={movie.releaseDate}
+            ratingsCount={movie.ratingsCount}
+            ticketPrice={movie.ticketPrice}
             title={movie.title}
           />
         ))}

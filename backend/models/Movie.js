@@ -18,6 +18,11 @@ const movieSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  ticketPrice: {
+    type: Number,
+    required: true,
+    min: 0.01,
+  },
   featured: {
     type: Boolean,
   },

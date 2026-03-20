@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import EventSeatRoundedIcon from "@mui/icons-material/EventSeatRounded";
+import { formatCalendarDate } from "../../utils/ticket-utils";
 
 const seatRows = ["A", "B", "C", "D", "E", "F"];
 const seatsPerRow = 8;
@@ -78,7 +79,7 @@ const SeatSelectionModal = ({
           </Typography>
           <Typography sx={{ mt: 1, color: "rgba(255,255,255,0.66)" }}>
             {bookingDate
-              ? `Choose your row and seat for ${new Date(bookingDate).toDateString()}`
+              ? `Choose your row and seat for ${formatCalendarDate(bookingDate)}`
               : "Select a date first to unlock seats."}
           </Typography>
         </Box>

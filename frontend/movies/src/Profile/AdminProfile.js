@@ -1,15 +1,45 @@
 import { Box } from "@mui/system";
 import React, { Fragment, useEffect, useState } from "react";
-import { getAdminById } from "../api-helpers/api-helpers";
+import { deleteMovie, getAdminById } from "../api-helpers/api-helpers";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import { Divider, List, ListItem, ListItemText, Typography } from "@mui/material";
+import { Button, Divider, List, ListItem, ListItemText, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+
 const AdminProfile = () => {
+  const navigate = useNavigate();
   const [admin, setAdmin] = useState();
+  const [errorMessage, setErrorMessage] = useState("");
+  const [deletingMovieId, setDeletingMovieId] = useState("");
+
   useEffect(() => {
     getAdminById()
       .then((res) => setAdmin(res.admin))
       .catch((err) => console.log(err.message));
   }, []);
+
+  const handleDeleteMovie = async (movieId) => {
+    setErrorMessage("");
+    setDeletingMovieId(movieId);
+
+    try {
+      await deleteMovie(movieId);
+      setAdmin((prevAdmin) => {
+        if (!prevAdmin) {
+          return prevAdmin;
+        }
+
+        return {
+          ...prevAdmin,
+          addedMovies: prevAdmin.addedMovies.filter((movie) => movie._id !== movieId),
+        };
+      });
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setDeletingMovieId("");
+    }
+  };
+
   return (
     <Box width="100%" display="flex" flexDirection={{ xs: "column", md: "row" }}>
       <Fragment>
@@ -44,7 +74,7 @@ const AdminProfile = () => {
             </Typography>
           </Box>
         )}
-        {admin && admin.addedMovies.length > 0 && (
+        {admin && (
           <Box
             width={{ xs: "100%", md: "68%" }}
             display="flex"
@@ -69,28 +99,84 @@ const AdminProfile = () => {
               Added Movies
             </Typography>
             <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
+            {errorMessage && (
+              <Typography sx={{ color: "#ff9aa2", mb: 2, textAlign: "center" }}>
+                {errorMessage}
+              </Typography>
+            )}
             <Box margin={"auto"} display="flex" flexDirection={"column"} width="100%">
-              <List>
-                {admin.addedMovies.map((movie) => (
-                  <ListItem
-                    key={movie._id}
-                    sx={{
-                      bgcolor: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      color: "white",
-                      textAlign: "center",
-                      marginY: 1,
-                      borderRadius: 4,
-                    }}
-                  >
-                    <ListItemText
-                      sx={{ margin: 1, width: "auto", textAlign: "left" }}
+              {admin.addedMovies.length > 0 ? (
+                <List>
+                  {admin.addedMovies.map((movie) => (
+                    <ListItem
+                      key={movie._id}
+                      sx={{
+                        bgcolor: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        color: "white",
+                        textAlign: "center",
+                        marginY: 1,
+                        borderRadius: 4,
+                        gap: 2,
+                        flexDirection: { xs: "column", sm: "row" },
+                        alignItems: { xs: "stretch", sm: "center" },
+                      }}
                     >
-                      Movie: {movie.title}
-                    </ListItemText>
-                  </ListItem>
-                ))}
-              </List>
+                      <ListItemText
+                        sx={{ margin: 1, width: "auto", textAlign: "left" }}
+                        primary={`Movie: ${movie.title}`}
+                        secondary={`Ticket price: $${Number(movie.ticketPrice || 0).toFixed(2)}`}
+                        secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.52)" } }}
+                      />
+                      <Box
+                        display="flex"
+                        gap={1.25}
+                        width={{ xs: "100%", sm: "auto" }}
+                        flexDirection={{ xs: "column", sm: "row" }}
+                      >
+                        <Button
+                          variant="outlined"
+                          onClick={() => navigate(`/edit/${movie._id}`)}
+                          sx={{
+                            borderRadius: 999,
+                            borderColor: "rgba(109,211,255,0.24)",
+                            color: "#6dd3ff",
+                            fontWeight: 800,
+                            px: 3,
+                            ":hover": {
+                              borderColor: "#6dd3ff",
+                              bgcolor: "rgba(109,211,255,0.08)",
+                            },
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="contained"
+                          onClick={() => handleDeleteMovie(movie._id)}
+                          disabled={deletingMovieId === movie._id}
+                          sx={{
+                            borderRadius: 999,
+                            bgcolor: "#ff6b6b",
+                            color: "#08111b",
+                            fontWeight: 800,
+                            px: 3,
+                            ":hover": {
+                              bgcolor: "#ff8585",
+                            },
+                          }}
+                        >
+                          {deletingMovieId === movie._id ? "Deleting..." : "Delete"}
+                        </Button>
+                      </Box>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography sx={{ color: "rgba(255,255,255,0.62)", textAlign: "center" }}>
+                  You have not added any movies yet.
+                </Typography>
+              )}
             </Box>
           </Box>
         )}

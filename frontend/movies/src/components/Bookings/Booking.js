@@ -1,27 +1,62 @@
-import { Alert, Button, FormLabel, TextField, Typography } from "@mui/material";
-import { Box } from "@mui/system";
+import {
+  Alert,
+  Box,
+  Button,
+  FormLabel,
+  MenuItem,
+  TextField,
+  Typography,
+} from "@mui/material";
 import React, { Fragment, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  addMovieReview,
   getBookedSeats,
   getMovieDetails,
   newBooking,
 } from "../../api-helpers/api-helpers";
 import SeatSelectionModal from "./SeatSelectionModal";
+import VirtualTicket from "./VirtualTicket";
+import {
+  formatCalendarDate,
+  formatTicketPrice,
+  paymentMethodLabels,
+} from "../../utils/ticket-utils";
+
+const paymentOptions = [
+  { value: "apple_pay", label: "Apple Pay" },
+  { value: "google_pay", label: "Google Pay" },
+  { value: "card", label: "Card Payment" },
+];
 
 const Booking = () => {
   const navigate = useNavigate();
   const [movie, setMovie] = useState();
-  const [inputs, setInputs] = useState({ date: "" });
+  const [comments, setComments] = useState([]);
+  const [inputs, setInputs] = useState({
+    date: "",
+    customerFirstName: "",
+    customerLastName: "",
+    phoneNumber: "",
+    paymentMethod: "card",
+  });
   const [selectedSeat, setSelectedSeat] = useState("");
   const [bookedSeats, setBookedSeats] = useState([]);
   const [isSeatModalOpen, setIsSeatModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [createdBooking, setCreatedBooking] = useState(null);
+  const [reviewInputs, setReviewInputs] = useState({ rating: "5", comment: "" });
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewError, setReviewError] = useState("");
   const id = useParams().id;
 
   useEffect(() => {
     getMovieDetails(id)
-      .then((res) => setMovie(res.movie))
+      .then((res) => {
+        setMovie(res.movie);
+        setComments(res.comments || []);
+      })
       .catch((err) => console.log(err.message));
   }, [id]);
 
@@ -48,11 +83,22 @@ const Booking = () => {
       [e.target.name]: e.target.value,
     }));
     setErrorMessage("");
+    setSuccessMessage("");
   };
 
   const handleSeatSelection = (seatNumber) => {
     setSelectedSeat(seatNumber);
     setErrorMessage("");
+    setSuccessMessage("");
+  };
+
+  const handleReviewChange = (e) => {
+    setReviewInputs((prevState) => ({
+      ...prevState,
+      [e.target.name]: e.target.value,
+    }));
+    setReviewMessage("");
+    setReviewError("");
   };
 
   const handleSubmit = (e) => {
@@ -63,10 +109,63 @@ const Booking = () => {
       return;
     }
 
+    if (
+      !inputs.customerFirstName.trim() ||
+      !inputs.customerLastName.trim() ||
+      !inputs.phoneNumber.trim()
+    ) {
+      setErrorMessage("Fill in first name, last name and phone number.");
+      return;
+    }
+
     newBooking({ ...inputs, movie: movie._id, seatNumber: selectedSeat })
-      .then(() => navigate("/user"))
-      .catch((err) => setErrorMessage(err.message));
+      .then((res) => {
+        setCreatedBooking(res.booking);
+        setBookedSeats((prevSeats) =>
+          prevSeats.includes(selectedSeat) ? prevSeats : [...prevSeats, selectedSeat]
+        );
+        setSuccessMessage("Payment completed and your virtual ticket is ready.");
+        setSelectedSeat("");
+      })
+      .catch((err) => {
+        setSuccessMessage("");
+        setErrorMessage(err.message);
+      });
   };
+
+  const handleReviewSubmit = (e) => {
+    e.preventDefault();
+
+    if (!reviewInputs.comment.trim()) {
+      setReviewError("Write a short review before sending it.");
+      return;
+    }
+
+    addMovieReview(id, {
+      rating: Number(reviewInputs.rating),
+      comment: reviewInputs.comment,
+    })
+      .then((res) => {
+        setComments(res.comments || []);
+        setMovie((prevMovie) => ({
+          ...prevMovie,
+          averageRating: res.averageRating,
+          ratingsCount: res.ratingsCount,
+        }));
+        setReviewInputs({ rating: "5", comment: "" });
+        setReviewMessage(res.message);
+        setReviewError("");
+      })
+      .catch((err) => {
+        setReviewMessage("");
+        setReviewError(err.message);
+      });
+  };
+
+  const reviews = [...comments].sort(
+    (firstReview, secondReview) =>
+      new Date(secondReview.updatedAt) - new Date(firstReview.updatedAt)
+  );
 
   return (
     <div>
@@ -122,7 +221,16 @@ const Booking = () => {
                   Starring: {movie.actors.join(", ")}
                 </Typography>
                 <Typography fontWeight="bold" marginTop={1.5}>
-                  Release Date: {new Date(movie.releaseDate).toDateString()}
+                  Release Date: {formatCalendarDate(movie.releaseDate)}
+                </Typography>
+                <Typography fontWeight="bold" marginTop={1.5} sx={{ color: "#ffb08d" }}>
+                  Ticket Price: {formatTicketPrice(movie.ticketPrice)}
+                </Typography>
+                <Typography fontWeight="bold" marginTop={1.5} sx={{ color: "#6dd3ff" }}>
+                  Rating:{" "}
+                  {movie.ratingsCount
+                    ? `${movie.averageRating} / 5 (${movie.ratingsCount} ratings)`
+                    : "No ratings yet"}
                 </Typography>
               </Box>
             </Box>
@@ -151,7 +259,7 @@ const Booking = () => {
                       mb: 2,
                     }}
                   >
-                    Choose Date and Seat
+                    Booking and Payment
                   </Typography>
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
                     Booking Date
@@ -163,6 +271,40 @@ const Booking = () => {
                     variant="outlined"
                     value={inputs.date}
                     onChange={handleChange}
+                    sx={fieldStyles}
+                  />
+                  <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
+                    First Name
+                  </FormLabel>
+                  <TextField
+                    name="customerFirstName"
+                    margin="normal"
+                    variant="outlined"
+                    value={inputs.customerFirstName}
+                    onChange={handleChange}
+                    sx={fieldStyles}
+                  />
+                  <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
+                    Last Name
+                  </FormLabel>
+                  <TextField
+                    name="customerLastName"
+                    margin="normal"
+                    variant="outlined"
+                    value={inputs.customerLastName}
+                    onChange={handleChange}
+                    sx={fieldStyles}
+                  />
+                  <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
+                    Phone Number
+                  </FormLabel>
+                  <TextField
+                    name="phoneNumber"
+                    margin="normal"
+                    variant="outlined"
+                    value={inputs.phoneNumber}
+                    onChange={handleChange}
+                    placeholder="+373 69 000 000"
                     sx={fieldStyles}
                   />
 
@@ -213,6 +355,70 @@ const Booking = () => {
                     </Button>
                   </Box>
 
+                  <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 2.5 }}>
+                    Payment Method
+                  </FormLabel>
+                  <TextField
+                    select
+                    name="paymentMethod"
+                    margin="normal"
+                    variant="outlined"
+                    value={inputs.paymentMethod}
+                    onChange={handleChange}
+                    sx={fieldStyles}
+                  >
+                    {paymentOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2.5,
+                      borderRadius: 5,
+                      border: "1px solid rgba(109,211,255,0.16)",
+                      background: "rgba(109,211,255,0.05)",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        color: "rgba(255,255,255,0.58)",
+                        fontSize: "0.86rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      Payment summary
+                    </Typography>
+                    <Typography sx={{ mt: 1.2 }}>
+                      Ticket price: {formatTicketPrice(movie.ticketPrice)}
+                    </Typography>
+                    <Typography sx={{ mt: 0.7 }}>
+                      Payment type: {paymentMethodLabels[inputs.paymentMethod]}
+                    </Typography>
+                    <Typography sx={{ mt: 0.7 }}>
+                      Seat: {selectedSeat || "Choose a seat first"}
+                    </Typography>
+                  </Box>
+
+                  {successMessage && (
+                    <Alert
+                      severity="success"
+                      sx={{
+                        mt: 2.5,
+                        borderRadius: 4,
+                        bgcolor: "rgba(80, 200, 120, 0.14)",
+                        color: "#d7ffe3",
+                        border: "1px solid rgba(80, 200, 120, 0.22)",
+                      }}
+                    >
+                      {successMessage}
+                    </Alert>
+                  )}
+
                   {errorMessage && (
                     <Alert
                       severity="error"
@@ -246,10 +452,221 @@ const Booking = () => {
                       },
                     }}
                   >
-                    Book Now
+                    Pay and Confirm Ticket
                   </Button>
                 </Box>
               </form>
+            </Box>
+          </Box>
+
+          {createdBooking && (
+            <Box
+              marginTop={4}
+              sx={{
+                p: 3,
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background:
+                  "linear-gradient(180deg, rgba(11,20,31,0.84), rgba(15,27,42,0.9))",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+              }}
+            >
+              <VirtualTicket booking={createdBooking} title="Paid Ticket" />
+              <Button
+                type="button"
+                variant="outlined"
+                onClick={() => navigate("/user")}
+                sx={{
+                  mt: 2,
+                  borderRadius: 999,
+                  borderColor: "rgba(255,255,255,0.18)",
+                  color: "white",
+                  "&:hover": {
+                    borderColor: "#6dd3ff",
+                    bgcolor: "rgba(109,211,255,0.08)",
+                  },
+                }}
+              >
+                Open My Bookings
+              </Button>
+            </Box>
+          )}
+
+          <Box
+            marginTop={4}
+            display="flex"
+            gap={3}
+            flexDirection={{ xs: "column", lg: "row" }}
+          >
+            <Box
+              width={{ xs: "100%", lg: "42%" }}
+              sx={{
+                p: 3,
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background:
+                  "linear-gradient(180deg, rgba(16,28,43,0.95), rgba(10,17,27,0.92))",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+              }}
+            >
+              <Typography
+                variant="h5"
+                sx={{ fontFamily: "'Space Grotesk', sans-serif", mb: 2 }}
+              >
+                Leave a Review
+              </Typography>
+              <form onSubmit={handleReviewSubmit}>
+                <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
+                  Rating
+                </FormLabel>
+                <TextField
+                  select
+                  name="rating"
+                  margin="normal"
+                  variant="outlined"
+                  value={reviewInputs.rating}
+                  onChange={handleReviewChange}
+                  sx={fieldStyles}
+                >
+                  {[5, 4, 3, 2, 1].map((value) => (
+                    <MenuItem key={value} value={String(value)}>
+                      {value} / 5
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
+                  Your Review
+                </FormLabel>
+                <TextField
+                  name="comment"
+                  margin="normal"
+                  variant="outlined"
+                  multiline
+                  minRows={4}
+                  value={reviewInputs.comment}
+                  onChange={handleReviewChange}
+                  placeholder="Share what you liked, what stood out, or what could be better."
+                  sx={fieldStyles}
+                />
+
+                {reviewMessage && (
+                  <Alert
+                    severity="success"
+                    sx={{
+                      mt: 2.5,
+                      borderRadius: 4,
+                      bgcolor: "rgba(80, 200, 120, 0.14)",
+                      color: "#d7ffe3",
+                      border: "1px solid rgba(80, 200, 120, 0.22)",
+                    }}
+                  >
+                    {reviewMessage}
+                  </Alert>
+                )}
+
+                {reviewError && (
+                  <Alert
+                    severity="error"
+                    sx={{
+                      mt: 2.5,
+                      borderRadius: 4,
+                      bgcolor: "rgba(255, 89, 94, 0.14)",
+                      color: "#ffd4d6",
+                      border: "1px solid rgba(255, 89, 94, 0.22)",
+                      "& .MuiAlert-icon": {
+                        color: "#ff8d92",
+                      },
+                    }}
+                  >
+                    {reviewError}
+                  </Alert>
+                )}
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  sx={{
+                    mt: 3,
+                    py: 1.35,
+                    width: "100%",
+                    borderRadius: 999,
+                    bgcolor: "#6dd3ff",
+                    color: "#08111b",
+                    fontWeight: 800,
+                    "&:hover": {
+                      bgcolor: "#8adfff",
+                    },
+                  }}
+                >
+                  Submit Review
+                </Button>
+              </form>
+            </Box>
+
+            <Box
+              width={{ xs: "100%", lg: "58%" }}
+              sx={{
+                p: 3,
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background:
+                  "linear-gradient(180deg, rgba(11,20,31,0.84), rgba(15,27,42,0.9))",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+              }}
+            >
+              <Typography
+                variant="h5"
+                sx={{ fontFamily: "'Space Grotesk', sans-serif", mb: 2 }}
+              >
+                Viewer Reviews
+              </Typography>
+              <Typography sx={{ mb: 2.5, color: "rgba(255,255,255,0.62)" }}>
+                {movie.ratingsCount
+                  ? `Average user score: ${movie.averageRating} / 5 from ${movie.ratingsCount} ratings`
+                  : "Average user score will appear after the first rating."}
+              </Typography>
+              {reviews.length ? (
+                <Box display="flex" flexDirection="column" gap={2}>
+                  {reviews.map((review) => (
+                    <Box
+                      key={review._id}
+                      sx={{
+                        p: 2.5,
+                        borderRadius: 4,
+                        bgcolor: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <Box
+                        display="flex"
+                        justifyContent="space-between"
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        flexDirection={{ xs: "column", sm: "row" }}
+                        gap={1}
+                      >
+                        <Typography fontWeight={700}>{review.userName}</Typography>
+                        <Typography sx={{ color: "#6dd3ff", fontWeight: 700 }}>
+                          {review.rating} / 5
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ mt: 1.2, color: "rgba(255,255,255,0.72)", lineHeight: 1.8 }}>
+                        {review.text}
+                      </Typography>
+                      <Typography sx={{ mt: 1, color: "rgba(255,255,255,0.5)", fontSize: "0.84rem" }}>
+                        {review.userEmail}
+                      </Typography>
+                      <Typography sx={{ mt: 1.2, color: "rgba(255,255,255,0.46)", fontSize: "0.82rem" }}>
+                        Updated: {new Date(review.updatedAt || review.createdAt).toLocaleString()}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography sx={{ color: "rgba(255,255,255,0.58)", lineHeight: 1.8 }}>
+                  There are no reviews yet. Be the first person to share an opinion
+                  about this movie.
+                </Typography>
+              )}
             </Box>
           </Box>
 
