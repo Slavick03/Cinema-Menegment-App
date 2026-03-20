@@ -133,7 +133,9 @@ test("newBooking creates a booking", async () => {
     this._id = bookingId;
     return this;
   });
-  mock.method(Bookings, "findById", () => createPopulateChain(populatedBooking));
+  mock.method(Bookings, "findById", () =>
+    createPopulateChain(populatedBooking),
+  );
   mock.method(mongoose, "startSession", async () => ({
     startTransaction() {},
     async commitTransaction() {},
