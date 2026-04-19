@@ -1,15 +1,15 @@
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
-import Admin from "../models/Admin.js";
-import Bookings from "../models/Bookings.js";
-import Comment from "../models/Comment.js";
-import Movie from "../models/Movie.js";
-import User from "../models/User.js";
+import { prisma } from "../lib/prisma.js";
+import {
+  serializeComment,
+  serializeMovie,
+} from "../utils/serializers.js";
 
 const hasEmptyValue = (...values) =>
   values.some((value) => typeof value !== "string" || value.trim() === "");
 
-const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
+const isValidObjectId = (value) =>
+  typeof value === "string" && value.trim() !== "";
 
 const normalizeTicketPriceValue = (value) => {
   if (typeof value === "number") {
@@ -39,7 +39,7 @@ const parseMovieReleaseDate = (value) => {
   if (isoDateMatch) {
     const [, year, month, day] = isoDateMatch;
     const normalizedDate = new Date(
-      Date.UTC(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0)
+      Date.UTC(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0),
     );
 
     return Number.isNaN(normalizedDate.getTime()) ? null : normalizedDate;
@@ -73,9 +73,9 @@ const getAdminIdFromToken = (authHeader = "") => {
 
 const mapRatingStats = (ratingStats) =>
   ratingStats.reduce((accumulator, item) => {
-    accumulator[item._id.toString()] = {
-      averageRating: Number(item.averageRating.toFixed(1)),
-      ratingsCount: item.ratingsCount,
+    accumulator[item.movieId] = {
+      averageRating: Number((item._avg.rating || 0).toFixed(1)),
+      ratingsCount: item._count.rating,
     };
     return accumulator;
   }, {});
@@ -85,22 +85,20 @@ const getMovieRatingsMap = async (movieIds) => {
     return {};
   }
 
-  const ratingStats = await Comment.aggregate([
-    {
-      $match: {
-        movie: {
-          $in: movieIds.map((id) => new mongoose.Types.ObjectId(id)),
-        },
+  const ratingStats = await prisma.comment.groupBy({
+    by: ["movieId"],
+    where: {
+      movieId: {
+        in: movieIds,
       },
     },
-    {
-      $group: {
-        _id: "$movie",
-        averageRating: { $avg: "$rating" },
-        ratingsCount: { $sum: 1 },
-      },
+    _avg: {
+      rating: true,
     },
-  ]);
+    _count: {
+      rating: true,
+    },
+  });
 
   return mapRatingStats(ratingStats);
 };
@@ -112,8 +110,15 @@ export const addMovie = async (req, res, next) => {
     return res.status(401).json({ message: error });
   }
 
-  const { title, description, releaseDate, posterUrl, featured, actors, ticketPrice } =
-    req.body;
+  const {
+    title,
+    description,
+    releaseDate,
+    posterUrl,
+    featured,
+    actors,
+    ticketPrice,
+  } = req.body;
   const normalizedActors = Array.isArray(actors)
     ? actors.map((actor) => `${actor}`.trim()).filter(Boolean)
     : [];
@@ -125,7 +130,9 @@ export const addMovie = async (req, res, next) => {
   }
 
   if (!Number.isFinite(normalizedTicketPrice) || normalizedTicketPrice <= 0) {
-    return res.status(422).json({ message: "Ticket price must be greater than 0" });
+    return res
+      .status(422)
+      .json({ message: "Ticket price must be greater than 0" });
   }
 
   if (!normalizedReleaseDate) {
@@ -137,38 +144,32 @@ export const addMovie = async (req, res, next) => {
   }
 
   let movie;
-  const session = await mongoose.startSession();
   try {
-    const adminUser = await Admin.findById(adminId);
+    const adminUser = await prisma.admin.findUnique({
+      where: { id: adminId },
+    });
 
     if (!adminUser) {
-      session.endSession();
       return res.status(404).json({ message: "Admin not found" });
     }
 
-    session.startTransaction();
-    movie = new Movie({
-      description: description.trim(),
-      releaseDate: normalizedReleaseDate,
-      featured: Boolean(featured),
-      actors: normalizedActors,
-      admin: adminId,
-      posterUrl: posterUrl.trim(),
-      ticketPrice: normalizedTicketPrice,
-      title: title.trim(),
+    movie = await prisma.movie.create({
+      data: {
+        description: description.trim(),
+        releaseDate: normalizedReleaseDate,
+        featured: Boolean(featured),
+        actors: normalizedActors,
+        adminId,
+        posterUrl: posterUrl.trim(),
+        ticketPrice: normalizedTicketPrice,
+        title: title.trim(),
+      },
     });
-    await movie.save({ session });
-    adminUser.addedMovies.push(movie);
-    await adminUser.save({ session });
-    await session.commitTransaction();
   } catch (err) {
-    await session.abortTransaction();
     return res.status(500).json({ message: "Unable to add movie" });
-  } finally {
-    session.endSession();
   }
 
-  return res.status(201).json({ movie });
+  return res.status(201).json({ movie: serializeMovie(movie) });
 };
 
 export const updateMovie = async (req, res, next) => {
@@ -184,8 +185,15 @@ export const updateMovie = async (req, res, next) => {
     return res.status(401).json({ message: error });
   }
 
-  const { title, description, releaseDate, posterUrl, featured, actors, ticketPrice } =
-    req.body;
+  const {
+    title,
+    description,
+    releaseDate,
+    posterUrl,
+    featured,
+    actors,
+    ticketPrice,
+  } = req.body;
   const normalizedActors = Array.isArray(actors)
     ? actors.map((actor) => `${actor}`.trim()).filter(Boolean)
     : [];
@@ -197,7 +205,9 @@ export const updateMovie = async (req, res, next) => {
   }
 
   if (!Number.isFinite(normalizedTicketPrice) || normalizedTicketPrice <= 0) {
-    return res.status(422).json({ message: "Ticket price must be greater than 0" });
+    return res
+      .status(422)
+      .json({ message: "Ticket price must be greater than 0" });
   }
 
   if (!normalizedReleaseDate) {
@@ -211,7 +221,9 @@ export const updateMovie = async (req, res, next) => {
   let movie;
 
   try {
-    movie = await Movie.findById(id);
+    movie = await prisma.movie.findUnique({
+      where: { id },
+    });
   } catch (err) {
     return res.status(500).json({ message: "Unable to update movie" });
   }
@@ -220,24 +232,33 @@ export const updateMovie = async (req, res, next) => {
     return res.status(404).json({ message: "Movie not found" });
   }
 
-  if (movie.admin.toString() !== adminId) {
-    return res.status(403).json({ message: "You can edit only your own movies" });
+  if (movie.adminId !== adminId) {
+    return res
+      .status(403)
+      .json({ message: "You can edit only your own movies" });
   }
 
   try {
-    movie.title = title.trim();
-    movie.description = description.trim();
-    movie.releaseDate = normalizedReleaseDate;
-    movie.posterUrl = posterUrl.trim();
-    movie.featured = Boolean(featured);
-    movie.actors = normalizedActors;
-    movie.ticketPrice = normalizedTicketPrice;
-    await movie.save();
+    movie = await prisma.movie.update({
+      where: { id },
+      data: {
+        title: title.trim(),
+        description: description.trim(),
+        releaseDate: normalizedReleaseDate,
+        posterUrl: posterUrl.trim(),
+        featured: Boolean(featured),
+        actors: normalizedActors,
+        ticketPrice: normalizedTicketPrice,
+      },
+    });
   } catch (err) {
     return res.status(500).json({ message: "Unable to update movie" });
   }
 
-  return res.status(200).json({ message: "Movie updated successfully", movie });
+  return res.status(200).json({
+    message: "Movie updated successfully",
+    movie: serializeMovie(movie),
+  });
 };
 
 export const deleteMovie = async (req, res, next) => {
@@ -254,55 +275,31 @@ export const deleteMovie = async (req, res, next) => {
   }
 
   let movie;
-  let adminUser;
-  const session = await mongoose.startSession();
 
   try {
-    movie = await Movie.findById(id);
-
-    if (!movie) {
-      session.endSession();
-      return res.status(404).json({ message: "Movie not found" });
-    }
-
-    if (movie.admin.toString() !== adminId) {
-      session.endSession();
-      return res.status(403).json({ message: "You can delete only your own movies" });
-    }
-
-    adminUser = await Admin.findById(adminId);
-
-    if (!adminUser) {
-      session.endSession();
-      return res.status(404).json({ message: "Admin not found" });
-    }
-
-    const bookings = await Bookings.find({ movie: id }).select("_id user");
-    const bookingIds = bookings.map((booking) => booking._id);
-    const userIds = [...new Set(bookings.map((booking) => booking.user.toString()))];
-
-    session.startTransaction();
-
-    if (bookingIds.length) {
-      await User.updateMany(
-        { _id: { $in: userIds } },
-        { $pull: { bookings: { $in: bookingIds } } },
-        { session }
-      );
-
-      await Bookings.deleteMany({ _id: { $in: bookingIds } }, { session });
-    }
-
-    await Comment.deleteMany({ movie: id }, { session });
-    adminUser.addedMovies.pull(movie._id);
-    await adminUser.save({ session });
-    await Movie.findByIdAndDelete(id, { session });
-    await session.commitTransaction();
+    movie = await prisma.movie.findUnique({
+      where: { id },
+    });
   } catch (err) {
-    await session.abortTransaction();
     return res.status(500).json({ message: "Unable to delete movie" });
-  } finally {
-    session.endSession();
+  }
+
+  if (!movie) {
+    return res.status(404).json({ message: "Movie not found" });
+  }
+
+  if (movie.adminId !== adminId) {
+    return res
+      .status(403)
+      .json({ message: "You can delete only your own movies" });
+  }
+
+  try {
+    await prisma.movie.delete({
+      where: { id },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to delete movie" });
   }
 
   return res.status(200).json({ message: "Movie deleted successfully" });
@@ -313,20 +310,20 @@ export const getAllMovies = async (req, res, next) => {
   let ratingsMap;
 
   try {
-    movies = await Movie.find();
-    ratingsMap = await getMovieRatingsMap(movies.map((movie) => movie._id));
+    movies = await prisma.movie.findMany();
+    ratingsMap = await getMovieRatingsMap(movies.map((movie) => movie.id));
   } catch (err) {
     return res.status(500).json({ message: "Request Failed" });
   }
 
   const moviesWithRatings = movies.map((movie) => {
-    const rating = ratingsMap[movie._id.toString()] || {
+    const rating = ratingsMap[movie.id] || {
       averageRating: 0,
       ratingsCount: 0,
     };
 
     return {
-      ...movie.toObject(),
+      ...serializeMovie(movie),
       averageRating: rating.averageRating,
       ratingsCount: rating.ratingsCount,
     };
@@ -346,9 +343,16 @@ export const getMovieById = async (req, res, next) => {
   let comments;
   let ratingsMap;
   try {
-    movie = await Movie.findById(id);
-    comments = await Comment.find({ movie: id }).sort({ updatedAt: -1 });
-    ratingsMap = await getMovieRatingsMap([id]);
+    [movie, comments, ratingsMap] = await Promise.all([
+      prisma.movie.findUnique({
+        where: { id },
+      }),
+      prisma.comment.findMany({
+        where: { movieId: id },
+        orderBy: { updatedAt: "desc" },
+      }),
+      getMovieRatingsMap([id]),
+    ]);
   } catch (err) {
     return res.status(500).json({ message: "Unable to fetch movie" });
   }
@@ -364,11 +368,11 @@ export const getMovieById = async (req, res, next) => {
 
   return res.status(200).json({
     movie: {
-      ...movie.toObject(),
+      ...serializeMovie(movie),
       averageRating: rating.averageRating,
       ratingsCount: rating.ratingsCount,
     },
-    comments,
+    comments: comments.map(serializeComment),
   });
 };
 
@@ -386,7 +390,11 @@ export const addMovieReview = async (req, res, next) => {
 
   const numericRating = Number(rating);
 
-  if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+  if (
+    !Number.isInteger(numericRating) ||
+    numericRating < 1 ||
+    numericRating > 5
+  ) {
     return res.status(422).json({ message: "Rating must be between 1 and 5" });
   }
 
@@ -394,8 +402,10 @@ export const addMovieReview = async (req, res, next) => {
   let user;
 
   try {
-    movie = await Movie.findById(movieId);
-    user = await User.findById(userId);
+    [movie, user] = await Promise.all([
+      prisma.movie.findUnique({ where: { id: movieId } }),
+      prisma.user.findUnique({ where: { id: userId } }),
+    ]);
   } catch (err) {
     return res.status(500).json({ message: "Unable to save review" });
   }
@@ -411,43 +421,43 @@ export const addMovieReview = async (req, res, next) => {
   const trimmedComment = comment.trim();
 
   try {
-    await Comment.create({
-      movie: movie._id,
-      movieTitle: movie.title.trim(),
-      user: user._id,
-      userName: user.name.trim(),
-      userEmail: user.email.trim(),
-      text: trimmedComment,
-      rating: numericRating,
+    await prisma.comment.create({
+      data: {
+        movieId: movie.id,
+        movieTitle: movie.title.trim(),
+        userId: user.id,
+        userName: user.name.trim(),
+        userEmail: user.email.trim(),
+        text: trimmedComment,
+        rating: numericRating,
+      },
     });
   } catch (err) {
-    if (err?.code === 11000) {
-      return res.status(409).json({
-        message:
-          "A database unique index is blocking repeated reviews from the same account. Restart the backend so comment indexes can be synchronized.",
-      });
-    }
-
     return res.status(500).json({ message: "Unable to save review" });
   }
 
   let comments;
   let ratingsMap;
   try {
-    comments = await Comment.find({ movie: movie._id }).sort({ updatedAt: -1 });
-    ratingsMap = await getMovieRatingsMap([movie._id]);
+    [comments, ratingsMap] = await Promise.all([
+      prisma.comment.findMany({
+        where: { movieId: movie.id },
+        orderBy: { updatedAt: "desc" },
+      }),
+      getMovieRatingsMap([movie.id]),
+    ]);
   } catch (err) {
     return res.status(500).json({ message: "Unable to fetch reviews" });
   }
 
-  const ratingSummary = ratingsMap[movie._id.toString()] || {
+  const ratingSummary = ratingsMap[movie.id] || {
     averageRating: 0,
     ratingsCount: 0,
   };
 
   return res.status(200).json({
     message: "Review added successfully",
-    comments,
+    comments: comments.map(serializeComment),
     averageRating: ratingSummary.averageRating,
     ratingsCount: ratingSummary.ratingsCount,
   });

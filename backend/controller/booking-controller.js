@@ -1,8 +1,6 @@
-import mongoose from "mongoose";
 import crypto from "crypto";
-import Bookings from "../models/Bookings.js";
-import Movie from "../models/Movie.js";
-import User from "../models/User.js";
+import { prisma } from "../lib/prisma.js";
+import { serializeBooking } from "../utils/serializers.js";
 
 const createNormalizedBookingDate = (dateValue) => {
   if (typeof dateValue !== "string") {
@@ -20,7 +18,7 @@ const createNormalizedBookingDate = (dateValue) => {
   if (dateOnlyMatch) {
     const [, year, month, day] = dateOnlyMatch;
     const normalizedDate = new Date(
-      Date.UTC(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0)
+      Date.UTC(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0),
     );
 
     return Number.isNaN(normalizedDate.getTime()) ? null : normalizedDate;
@@ -36,7 +34,8 @@ const createNormalizedBookingDate = (dateValue) => {
   return parsedDate;
 };
 
-const isValidDateValue = (dateValue) => Boolean(createNormalizedBookingDate(dateValue));
+const isValidDateValue = (dateValue) =>
+  Boolean(createNormalizedBookingDate(dateValue));
 const hasEmptyValue = (...values) =>
   values.some((value) => typeof value !== "string" || value.trim() === "");
 
@@ -44,7 +43,13 @@ const validPaymentMethods = new Set(["apple_pay", "google_pay", "card"]);
 const normalizePhoneNumber = (phoneNumber) => `${phoneNumber || ""}`.trim();
 const isValidPhoneNumber = (phoneNumber) =>
   /^[0-9+\-\s()]{7,20}$/.test(phoneNumber);
-const createTicketCode = () => `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+const createTicketCode = () =>
+  `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
+const includeBookingRelations = {
+  movie: true,
+  user: true,
+};
 
 export const newBooking = async (req, res, next) => {
   const {
@@ -62,20 +67,22 @@ export const newBooking = async (req, res, next) => {
   const normalizedFirstName = `${customerFirstName || ""}`.trim();
   const normalizedLastName = `${customerLastName || ""}`.trim();
 
-  if (
-    !mongoose.Types.ObjectId.isValid(movie) ||
-    !mongoose.Types.ObjectId.isValid(user)
-  ) {
+  if (hasEmptyValue(movie, user)) {
     return res.status(400).json({ message: "Invalid movie or user ID" });
   }
 
   if (
     !date ||
     !normalizedSeatNumber ||
-    hasEmptyValue(normalizedFirstName, normalizedLastName, normalizedPhoneNumber)
+    hasEmptyValue(
+      normalizedFirstName,
+      normalizedLastName,
+      normalizedPhoneNumber,
+    )
   ) {
     return res.status(422).json({
-      message: "Date, seat number, first name, last name and phone number are required",
+      message:
+        "Date, seat number, first name, last name and phone number are required",
     });
   }
 
@@ -100,8 +107,10 @@ export const newBooking = async (req, res, next) => {
   let existingMovie;
   let existingUser;
   try {
-    existingMovie = await Movie.findById(movie);
-    existingUser = await User.findById(user);
+    [existingMovie, existingUser] = await Promise.all([
+      prisma.movie.findUnique({ where: { id: movie } }),
+      prisma.user.findUnique({ where: { id: user } }),
+    ]);
   } catch (err) {
     return res.status(500).json({ message: "Unable to validate booking" });
   }
@@ -112,35 +121,45 @@ export const newBooking = async (req, res, next) => {
   if (!existingUser) {
     return res.status(404).json({ message: "User not found with given ID " });
   }
-  if (!Number.isFinite(Number(existingMovie.ticketPrice)) || Number(existingMovie.ticketPrice) <= 0) {
-    return res.status(422).json({ message: "This movie does not have a valid ticket price yet" });
+  if (
+    !Number.isFinite(Number(existingMovie.ticketPrice)) ||
+    Number(existingMovie.ticketPrice) <= 0
+  ) {
+    return res.status(422).json({
+      message: "This movie does not have a valid ticket price yet",
+    });
   }
+
   let existingBooking;
 
   try {
-    existingBooking = await Bookings.findOne({
-      movie,
-      seatNumber: normalizedSeatNumber,
-      date: normalizedBookingDate,
+    existingBooking = await prisma.booking.findFirst({
+      where: {
+        movieId: movie,
+        seatNumber: normalizedSeatNumber,
+        date: normalizedBookingDate,
+      },
     });
   } catch (err) {
-    return res.status(500).json({ message: "Unable to validate seat availability" });
+    return res
+      .status(500)
+      .json({ message: "Unable to validate seat availability" });
   }
 
   if (existingBooking) {
-    return res.status(409).json({ message: "This seat is already booked for the selected date" });
+    return res.status(409).json({
+      message: "This seat is already booked for the selected date",
+    });
   }
 
   let booking;
-  const session = await mongoose.startSession();
 
   try {
-    session.startTransaction();
     const ticketCode = createTicketCode();
     const totalPrice = Number(existingMovie.ticketPrice);
     const qrCodeValue = JSON.stringify({
       ticketCode,
-      movieId: existingMovie._id.toString(),
+      movieId: existingMovie.id,
       movieTitle: existingMovie.title,
       bookingDate: normalizedBookingDate.toISOString(),
       seatNumber: normalizedSeatNumber,
@@ -150,47 +169,41 @@ export const newBooking = async (req, res, next) => {
       totalPrice,
     });
 
-    booking = new Bookings({
-      movie,
-      date: normalizedBookingDate,
-      seatNumber: normalizedSeatNumber,
-      customerFirstName: normalizedFirstName,
-      customerLastName: normalizedLastName,
-      phoneNumber: normalizedPhoneNumber,
-      paymentMethod,
-      paymentStatus: "paid",
-      totalPrice,
-      ticketCode,
-      qrCodeValue,
-      user,
+    booking = await prisma.booking.create({
+      data: {
+        movieId: movie,
+        date: normalizedBookingDate,
+        seatNumber: normalizedSeatNumber,
+        customerFirstName: normalizedFirstName,
+        customerLastName: normalizedLastName,
+        phoneNumber: normalizedPhoneNumber,
+        paymentMethod,
+        paymentStatus: "paid",
+        totalPrice,
+        ticketCode,
+        qrCodeValue,
+        userId: user,
+      },
+      include: includeBookingRelations,
     });
-    existingUser.bookings.push(booking);
-    existingMovie.bookings.push(booking);
-    await existingUser.save({ session });
-    await existingMovie.save({ session });
-    await booking.save({ session });
-    await session.commitTransaction();
-    booking = await Bookings.findById(booking._id).populate("movie").populate("user");
   } catch (err) {
-    await session.abortTransaction();
-
-    if (err?.code === 11000) {
-      return res.status(409).json({ message: "This seat is already booked for the selected date" });
+    if (err?.code === "P2002") {
+      return res.status(409).json({
+        message: "This seat is already booked for the selected date",
+      });
     }
 
     return res.status(500).json({ message: "Unable to create a booking" });
-  } finally {
-    session.endSession();
   }
 
-  return res.status(201).json({ booking });
+  return res.status(201).json({ booking: serializeBooking(booking) });
 };
 
 export const getBookedSeatsByMovieAndDate = async (req, res, next) => {
   const { movieId } = req.params;
   const { date } = req.query;
 
-  if (!mongoose.Types.ObjectId.isValid(movieId)) {
+  if (hasEmptyValue(movieId)) {
     return res.status(400).json({ message: "Invalid movie ID" });
   }
 
@@ -206,10 +219,13 @@ export const getBookedSeatsByMovieAndDate = async (req, res, next) => {
   let bookings;
 
   try {
-    bookings = await Bookings.find({
-      movie: movieId,
-      date: normalizedBookingDate,
-    }).select("seatNumber");
+    bookings = await prisma.booking.findMany({
+      where: {
+        movieId,
+        date: normalizedBookingDate,
+      },
+      select: { seatNumber: true },
+    });
   } catch (err) {
     return res.status(500).json({ message: "Unable to fetch booked seats" });
   }
@@ -222,52 +238,42 @@ export const getBookedSeatsByMovieAndDate = async (req, res, next) => {
 export const getBookingById = async (req, res, next) => {
   const id = req.params.id;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (hasEmptyValue(id)) {
     return res.status(400).json({ message: "Invalid booking ID" });
   }
 
   let booking;
   try {
-    booking = await Bookings.findById(id).populate("movie").populate("user");
+    booking = await prisma.booking.findUnique({
+      where: { id },
+      include: includeBookingRelations,
+    });
   } catch (err) {
     return res.status(500).json({ message: "Unexpected Error" });
   }
   if (!booking) {
     return res.status(404).json({ message: "Booking not found" });
   }
-  return res.status(200).json({ booking });
+  return res.status(200).json({ booking: serializeBooking(booking) });
 };
 
 export const deleteBooking = async (req, res, next) => {
   const id = req.params.id;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (hasEmptyValue(id)) {
     return res.status(400).json({ message: "Invalid booking ID" });
   }
 
-  let booking;
-  const session = await mongoose.startSession();
-
   try {
-    booking = await Bookings.findById(id).populate("user movie");
-
-    if (!booking) {
-      session.endSession();
+    await prisma.booking.delete({
+      where: { id },
+    });
+  } catch (err) {
+    if (err?.code === "P2025") {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    session.startTransaction();
-    booking.user.bookings.pull(booking._id);
-    booking.movie.bookings.pull(booking._id);
-    await booking.movie.save({ session });
-    await booking.user.save({ session });
-    await Bookings.findByIdAndDelete(id, { session });
-    await session.commitTransaction();
-  } catch (err) {
-    await session.abortTransaction();
     return res.status(500).json({ message: "Unable to delete booking" });
-  } finally {
-    session.endSession();
   }
 
   return res.status(200).json({ message: "Successfully Deleted" });
