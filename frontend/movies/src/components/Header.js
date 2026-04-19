@@ -7,14 +7,18 @@ import {
   Tab,
   Tabs,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Toolbar,
   Typography,
 } from "@mui/material";
 import MovieCreationIcon from "@mui/icons-material/MovieCreation";
+import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
 import { getAllMovies } from "../api-helpers/api-helpers";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { adminActions, userActions } from "../store";
+import { useI18n } from "../i18n/LanguageContext";
 // const dummyArray = ["eMemory", "Brahmastra", "OK", "PK"];
 
 const Header = () => {
@@ -24,6 +28,7 @@ const Header = () => {
   const isUserLoggedIn = useSelector((state) => state.user.isLoggedIn);
   const [movies, setMovies] = useState([]);
   const [value, setValue] = useState(false);
+  const { language, setLanguage, availableLanguages, t } = useI18n();
 
   useEffect(() => {
     getAllMovies()
@@ -67,7 +72,7 @@ const Header = () => {
         }}
       >
         <Box
-          width={{ xs: "100%", md: "20%" }}
+          width={{ xs: "100%", md: "auto" }}
           display="flex"
           alignItems="center"
           justifyContent={{ xs: "center", md: "flex-start" }}
@@ -104,7 +109,7 @@ const Header = () => {
                   lineHeight: 1.1,
                 }}
               >
-                Cinema Lounge
+                {t("appName")}
               </Typography>
               <Typography
                 sx={{
@@ -114,13 +119,99 @@ const Header = () => {
                   textTransform: "uppercase",
                 }}
               >
-                Book the next premiere
+                {t("appTagline")}
               </Typography>
             </Box>
           </Link>
         </Box>
         <Box
-          width={{ xs: "100%", md: "42%" }}
+          display="flex"
+          alignItems="center"
+          justifyContent={{ xs: "center", md: "flex-start" }}
+          width={{ xs: "100%", md: "auto" }}
+        >
+          <Box
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 1,
+              px: 1,
+              py: 0.7,
+              borderRadius: 999,
+              bgcolor: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <TranslateRoundedIcon
+              sx={{ color: "#6dd3ff", fontSize: "1.05rem" }}
+            />
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={language}
+              onChange={(_, nextLanguage) => {
+                if (nextLanguage) {
+                  setLanguage(nextLanguage);
+                }
+              }}
+              aria-label={t("languageLabel")}
+              sx={{
+                gap: 0.6,
+                "& .MuiToggleButtonGroup-grouped": {
+                  border: "0 !important",
+                  borderRadius: "999px !important",
+                  px: 1.2,
+                  py: 0.45,
+                  color: "rgba(255,255,255,0.7)",
+                  fontWeight: 800,
+                  fontSize: "0.72rem",
+                  letterSpacing: "0.08em",
+                  minWidth: 44,
+                },
+              }}
+            >
+              {availableLanguages.map((option) => (
+                <ToggleButton
+                  key={option.code}
+                  value={option.code}
+                  sx={{
+                    bgcolor:
+                      language === option.code
+                        ? "rgba(109,211,255,0.18)"
+                        : "transparent",
+                    color:
+                      language === option.code
+                        ? "#dff8ff"
+                        : "rgba(255,255,255,0.72)",
+                    "&.Mui-selected": {
+                      bgcolor: "rgba(109,211,255,0.18)",
+                      color: "#dff8ff",
+                    },
+                    "&.Mui-selected:hover": {
+                      bgcolor: "rgba(109,211,255,0.22)",
+                      color: "#ffffff",
+                    },
+                    boxShadow:
+                      language === option.code
+                        ? "inset 0 0 0 1px rgba(109,211,255,0.18)"
+                        : "none",
+                    "&:hover": {
+                      bgcolor:
+                        language === option.code
+                          ? "rgba(109,211,255,0.22)"
+                          : "rgba(255,255,255,0.06)",
+                    },
+                  }}
+                >
+                  {option.shortLabel}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Box>
+        </Box>
+        <Box
+          width={{ xs: "100%", md: "min(420px, 100%)" }}
           marginRight={{ xs: 0, md: "auto" }}
           marginLeft={{ xs: 0, md: "auto" }}
         >
@@ -149,7 +240,7 @@ const Header = () => {
                     },
                   },
                 }}
-                placeholder="Search Movies"
+                placeholder={t("searchMovies")}
               />
             )}
           />
@@ -163,7 +254,13 @@ const Header = () => {
           flexWrap="wrap"
         >
           <Chip
-            label={isAdminLoggedIn ? "Admin mode" : isUserLoggedIn ? "User mode" : "Guest"}
+            label={
+              isAdminLoggedIn
+                ? t("modeAdmin")
+                : isUserLoggedIn
+                  ? t("modeUser")
+                  : t("modeGuest")
+            }
             sx={{
               display: { xs: "inline-flex", md: "none" },
               bgcolor: "rgba(255,255,255,0.06)",
@@ -196,34 +293,34 @@ const Header = () => {
               },
             }}
           >
-            <Tab LinkComponent={Link} to="/movies" label="Movies"></Tab>
+            <Tab LinkComponent={Link} to="/movies" label={t("navMovies")}></Tab>
             {!isAdminLoggedIn && !isUserLoggedIn && (
-              <Tab label="Admin" LinkComponent={Link} to="/admin" />
+              <Tab label={t("navAdmin")} LinkComponent={Link} to="/admin" />
             )}
             {!isAdminLoggedIn && !isUserLoggedIn && (
-              <Tab label="Auth" LinkComponent={Link} to="/auth" />
+              <Tab label={t("navAuth")} LinkComponent={Link} to="/auth" />
             )}
             {isUserLoggedIn && (
-              <Tab label="Profile" LinkComponent={Link} to="/user" />
+              <Tab label={t("navProfile")} LinkComponent={Link} to="/user" />
             )}
             {isUserLoggedIn && (
               <Tab
                 onClick={() => logout(false)}
-                label="Logout"
+                label={t("navLogout")}
                 LinkComponent={Link}
                 to="/"
               />
             )}
             {isAdminLoggedIn && (
-              <Tab label="Add Movie" LinkComponent={Link} to="/add" />
+              <Tab label={t("navAddMovie")} LinkComponent={Link} to="/add" />
             )}
             {isAdminLoggedIn && (
-              <Tab label="Profile" LinkComponent={Link} to="/user-admin" />
+              <Tab label={t("navProfile")} LinkComponent={Link} to="/user-admin" />
             )}
             {isAdminLoggedIn && (
               <Tab
                 onClick={() => logout(true)}
-                label="Logout"
+                label={t("navLogout")}
                 LinkComponent={Link}
                 to="/"
               />

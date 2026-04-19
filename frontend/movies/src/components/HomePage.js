@@ -3,9 +3,11 @@ import React, { useEffect, useState } from "react";
 import MovieItem from "./Movies/MovieItem";
 import { Link } from "react-router-dom";
 import { getAllMovies } from "../api-helpers/api-helpers";
+import { useI18n } from "../i18n/LanguageContext";
 
 const HomePage = () => {
   const [movies, setMovies] = useState([]);
+  const { t } = useI18n();
   useEffect(() => {
     getAllMovies()
       .then((data) => setMovies(data.movies || []))
@@ -39,7 +41,7 @@ const HomePage = () => {
           }}
         >
           <Chip
-            label="Now showing"
+            label={t("homeNowShowing")}
             sx={{
               width: "fit-content",
               bgcolor: "rgba(255,122,69,0.12)",
@@ -58,7 +60,7 @@ const HomePage = () => {
               maxWidth: "10ch",
             }}
           >
-            Feel every scene before the lights go down.
+            {t("homeHeroTitle")}
           </Typography>
           <Typography
             sx={{
@@ -68,8 +70,7 @@ const HomePage = () => {
               color: "rgba(255,255,255,0.72)",
             }}
           >
-            Discover the freshest releases, reserve seats in seconds and turn a
-            regular night out into a full cinema experience.
+            {t("homeHeroDescription")}
           </Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <Button
@@ -88,7 +89,7 @@ const HomePage = () => {
                 },
               }}
             >
-              Browse Movies
+              {t("homeBrowseMovies")}
             </Button>
             <Button
               LinkComponent={Link}
@@ -106,7 +107,7 @@ const HomePage = () => {
                 },
               }}
             >
-              Sign In To Book
+              {t("homeSignInToBook")}
             </Button>
           </Stack>
         </Box>
@@ -129,7 +130,7 @@ const HomePage = () => {
           >
             <img
               src="https://i.ytimg.com/vi/bweRG6WueuM/maxresdefault.jpg"
-              alt="Featured cinema release"
+              alt={t("homeFeaturedImageAlt")}
               width="100%"
               height="100%"
               style={{ objectFit: "cover" }}
@@ -164,7 +165,7 @@ const HomePage = () => {
               fontWeight: 800,
             }}
           >
-            Curated tonight
+            {t("homeCuratedTonight")}
           </Typography>
           <Typography
             variant="h3"
@@ -174,7 +175,7 @@ const HomePage = () => {
               mt: 1,
             }}
           >
-            Latest Releases
+            {t("homeLatestReleases")}
           </Typography>
         </Box>
         <Typography
@@ -184,7 +185,7 @@ const HomePage = () => {
             lineHeight: 1.7,
           }}
         >
-          A handpicked lineup of new titles ready for your next booking.
+          {t("homeLatestDescription")}
         </Typography>
       </Box>
       <Box
@@ -229,7 +230,7 @@ const HomePage = () => {
             },
           }}
         >
-          View All Movies
+          {t("homeViewAllMovies")}
         </Button>
       </Box>
     </Box>

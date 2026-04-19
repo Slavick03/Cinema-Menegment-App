@@ -27,36 +27,40 @@ const parseCalendarValue = (value) => {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 };
 
-export const paymentMethodLabels = {
-  apple_pay: "Apple Pay",
-  google_pay: "Google Pay",
-  card: "Card Payment",
+export const getPaymentMethodLabel = (paymentMethod, t) => {
+  const labels = {
+    apple_pay: t ? t("paymentApplePay") : "Apple Pay",
+    google_pay: t ? t("paymentGooglePay") : "Google Pay",
+    card: t ? t("paymentCard") : "Card Payment",
+  };
+
+  return labels[paymentMethod] || paymentMethod || (t ? t("ticketNotSpecified") : "Not specified");
 };
 
 export const formatTicketPrice = (value) => `$${Number(value || 0).toFixed(2)}`;
 
-export const formatCalendarDate = (value) => {
+export const formatCalendarDate = (value, locale = undefined) => {
   const parsedDate = parseCalendarValue(value);
 
   if (!parsedDate) {
     return "";
   }
 
-  return parsedDate.toLocaleDateString([], {
+  return parsedDate.toLocaleDateString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 };
 
-export const formatTicketDate = (value) => {
+export const formatTicketDate = (value, locale = undefined) => {
   const parsedDate = parseCalendarValue(value);
 
   if (!parsedDate) {
     return "";
   }
 
-  return parsedDate.toLocaleString([], {
+  return parsedDate.toLocaleString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -65,16 +69,24 @@ export const formatTicketDate = (value) => {
   });
 };
 
-export const getCustomerName = (booking) => {
+export const getCustomerName = (booking, fallbackLabel = "Guest") => {
   const fullName =
     `${booking?.customerFirstName || ""} ${booking?.customerLastName || ""}`.trim();
 
-  return fullName || booking?.user?.name || "Guest";
+  return fullName || booking?.user?.name || fallbackLabel;
 };
 
-export const getTicketQrValue = (booking) => {
+export const getTicketQrValue = (
+  booking,
+  fallbacks = {
+    ticketUnavailable: "ticket-unavailable",
+    bookingId: "unknown-booking",
+    movieTitle: "Movie unavailable",
+    customerName: "Guest",
+  }
+) => {
   if (!booking) {
-    return "ticket-unavailable";
+    return fallbacks.ticketUnavailable;
   }
 
   if (typeof booking.qrCodeValue === "string" && booking.qrCodeValue.trim()) {
@@ -86,11 +98,11 @@ export const getTicketQrValue = (booking) => {
   }
 
   return JSON.stringify({
-    bookingId: booking._id || "unknown-booking",
-    movieTitle: booking.movie?.title || "Movie unavailable",
+    bookingId: booking._id || fallbacks.bookingId,
+    movieTitle: booking.movie?.title || fallbacks.movieTitle,
     date: booking.date || "",
     seatNumber: booking.seatNumber || "",
-    customerName: getCustomerName(booking) || "Guest",
+    customerName: getCustomerName(booking, fallbacks.customerName),
   });
 };
 

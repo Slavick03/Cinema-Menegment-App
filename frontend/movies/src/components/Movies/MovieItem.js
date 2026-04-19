@@ -10,6 +10,7 @@ import React from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { formatCalendarDate, formatTicketPrice } from "../../utils/ticket-utils";
+import { useI18n } from "../../i18n/LanguageContext";
 
 const MovieItem = ({
   title,
@@ -23,6 +24,7 @@ const MovieItem = ({
   const navigate = useNavigate();
   const isUserLoggedIn = useSelector((state) => state.user.isLoggedIn);
   const hasRatings = Number(ratingsCount) > 0;
+  const { locale, t } = useI18n();
 
   const handleButtonClick = () => {
     if (isUserLoggedIn) {
@@ -88,7 +90,7 @@ const MovieItem = ({
               lineHeight: 1,
             }}
           >
-            {hasRatings ? `${averageRating} / 5` : "New"}
+            {hasRatings ? `${averageRating} / 5` : t("movieBadgeNew")}
           </Typography>
         </Box>
       </Box>
@@ -105,7 +107,7 @@ const MovieItem = ({
           {title}
         </Typography>
         <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.62)" }}>
-          {formatCalendarDate(releaseDate)}
+          {formatCalendarDate(releaseDate, locale)}
         </Typography>
         <Typography
           sx={{
@@ -115,7 +117,7 @@ const MovieItem = ({
             fontSize: "0.95rem",
           }}
         >
-          Ticket: {formatTicketPrice(ticketPrice)}
+          {t("movieTicket")}: {formatTicketPrice(ticketPrice)}
         </Typography>
         <Typography
           sx={{
@@ -125,10 +127,13 @@ const MovieItem = ({
             fontSize: "0.95rem",
           }}
         >
-          Rating: {hasRatings ? `${averageRating} / 5` : "No ratings yet"}
+          {t("movieRating")}:{" "}
+          {hasRatings ? `${averageRating} / 5` : t("movieNoRatingsYet")}
         </Typography>
         <Typography variant="body2" sx={{ mt: 0.5, color: "rgba(255,255,255,0.55)" }}>
-          {hasRatings ? `${ratingsCount} user ratings` : "Be the first to rate"}
+          {hasRatings
+            ? t("movieUserRatings", { count: ratingsCount })
+            : t("movieBeFirstToRate")}
         </Typography>
       </CardContent>
       <CardActions sx={{ p: 2.5, pt: 0, mt: "auto" }}>
@@ -149,7 +154,7 @@ const MovieItem = ({
           onClick={handleButtonClick}
           size="medium"
         >
-          Book a Seat
+          {t("movieBookSeat")}
         </Button>
       </CardActions>
     </Card>

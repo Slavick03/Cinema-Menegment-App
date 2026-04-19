@@ -11,6 +11,7 @@ import {
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import EventSeatRoundedIcon from "@mui/icons-material/EventSeatRounded";
 import { formatCalendarDate } from "../../utils/ticket-utils";
+import { useI18n } from "../../i18n/LanguageContext";
 
 const seatRows = ["A", "B", "C", "D", "E", "F"];
 const seatsPerRow = 8;
@@ -25,6 +26,7 @@ const SeatSelectionModal = ({
   bookingDate,
 }) => {
   const bookedSeatSet = new Set(bookedSeats);
+  const { locale, t } = useI18n();
 
   return (
     <Dialog
@@ -65,7 +67,7 @@ const SeatSelectionModal = ({
               fontSize: "0.76rem",
             }}
           >
-            Seat map
+            {t("seatMapTitle")}
           </Typography>
           <Typography
             variant="h4"
@@ -79,8 +81,10 @@ const SeatSelectionModal = ({
           </Typography>
           <Typography sx={{ mt: 1, color: "rgba(255,255,255,0.66)" }}>
             {bookingDate
-              ? `Choose your row and seat for ${formatCalendarDate(bookingDate)}`
-              : "Select a date first to unlock seats."}
+              ? t("seatMapChooseForDate", {
+                  date: formatCalendarDate(bookingDate, locale),
+                })
+              : t("seatMapSelectDateFirst")}
           </Typography>
         </Box>
         <IconButton onClick={onClose} sx={{ color: "rgba(255,255,255,0.72)" }}>
@@ -104,13 +108,13 @@ const SeatSelectionModal = ({
             boxShadow: "0 16px 40px rgba(0,0,0,0.26)",
           }}
         >
-          SCREEN
+          {t("seatMapScreen")}
         </Box>
 
         <Box display="flex" justifyContent="center" gap={1.2} flexWrap="wrap" mb={3}>
-          <Chip label="Available" sx={legendChipStyles("#6dd3ff", "rgba(109,211,255,0.12)")} />
-          <Chip label="Selected" sx={legendChipStyles("#ff7a45", "rgba(255,122,69,0.14)")} />
-          <Chip label="Booked" sx={legendChipStyles("rgba(255,255,255,0.58)", "rgba(255,255,255,0.06)")} />
+          <Chip label={t("seatMapAvailable")} sx={legendChipStyles("#6dd3ff", "rgba(109,211,255,0.12)")} />
+          <Chip label={t("seatMapSelected")} sx={legendChipStyles("#ff7a45", "rgba(255,122,69,0.14)")} />
+          <Chip label={t("seatMapBooked")} sx={legendChipStyles("rgba(255,255,255,0.58)", "rgba(255,255,255,0.06)")} />
         </Box>
 
         <Box display="flex" flexDirection="column" gap={1.4}>
@@ -207,7 +211,7 @@ const SeatSelectionModal = ({
         >
           <Box>
             <Typography sx={{ color: "rgba(255,255,255,0.58)", fontSize: "0.86rem" }}>
-              Selected seat
+              {t("bookingSelectedSeat")}
             </Typography>
             <Typography
               sx={{
@@ -216,7 +220,7 @@ const SeatSelectionModal = ({
                 fontSize: "1.3rem",
               }}
             >
-              {selectedSeat || "No seat selected yet"}
+              {selectedSeat || t("bookingNoSeatSelected")}
             </Typography>
           </Box>
           <Button
@@ -234,7 +238,7 @@ const SeatSelectionModal = ({
               },
             }}
           >
-            Confirm Seat
+            {t("seatMapConfirm")}
           </Button>
         </Box>
       </DialogContent>

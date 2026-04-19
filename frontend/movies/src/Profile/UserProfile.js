@@ -15,9 +15,11 @@ import {
 } from "@mui/material";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import VirtualTicket from "../components/Bookings/VirtualTicket";
+import { useI18n } from "../i18n/LanguageContext";
 const UserProfile = () => {
   const [bookings, setBookings] = useState([]);
   const [user, setUser] = useState();
+  const { t } = useI18n();
 
   useEffect(() => {
     getUserBooking()
@@ -62,7 +64,7 @@ const UserProfile = () => {
               borderRadius={4}
               bgcolor="rgba(255,255,255,0.03)"
             >
-              Name: {user.name}
+              {t("profileName")}: {user.name}
             </Typography>
             <Typography
               mt={1}
@@ -73,7 +75,7 @@ const UserProfile = () => {
               borderRadius={4}
               bgcolor="rgba(255,255,255,0.03)"
             >
-              Email: {user.email}
+              {t("profileEmail")}: {user.email}
             </Typography>
           </Box>
         )}
@@ -99,7 +101,7 @@ const UserProfile = () => {
                 fontSize: { xs: "2rem", md: "2.6rem" },
               }}
             >
-              Bookings
+              {t("userBookings")}
             </Typography>
             <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
             <Box margin={"auto"} display="flex" flexDirection={"column"} width="100%">
@@ -128,7 +130,7 @@ const UserProfile = () => {
                           fontWeight: 800,
                         }}
                       >
-                        Booking
+                        {t("userBookingLabel")}
                       </Typography>
                       <IconButton
                         onClick={() => handleDelete(booking._id)}

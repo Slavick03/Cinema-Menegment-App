@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { getAllMovies } from "../../api-helpers/api-helpers";
 import { Box, Typography } from "@mui/material";
 import MovieItem from "./MovieItem";
+import { useI18n } from "../../i18n/LanguageContext";
 
 const Movies = () => {
   const [movies, setMovies] = useState([]);
+  const { t } = useI18n();
 
   useEffect(() => {
     getAllMovies()
@@ -33,7 +35,7 @@ const Movies = () => {
             fontWeight: 800,
           }}
         >
-          Movie catalog
+          {t("moviesCatalog")}
         </Typography>
         <Typography
           marginTop={1}
@@ -43,7 +45,7 @@ const Movies = () => {
             fontSize: { xs: "2rem", md: "3rem" },
           }}
         >
-          All Movies
+          {t("moviesAll")}
         </Typography>
       </Box>
       <Box

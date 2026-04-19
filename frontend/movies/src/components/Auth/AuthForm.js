@@ -10,6 +10,7 @@ import {
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import { useI18n } from "../../i18n/LanguageContext";
 
 const labelStyle = { mt: 1, mb: 1 };
 const AuthForm = ({ onSubmit, isAdmin }) => {
@@ -19,6 +20,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
     password: "",
   });
   const [isSignup, setIsSignup] = useState(false);
+  const { t } = useI18n();
   const handleChange = (e) => {
     setInputs((prevState) => ({
       ...prevState,
@@ -68,7 +70,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
               fontSize: "0.76rem",
             }}
           >
-            {isAdmin ? "Administrator access" : "Cinema account"}
+            {isAdmin ? t("authAdminAccess") : t("authCinemaAccount")}
           </Typography>
           <Typography
             variant="h3"
@@ -79,12 +81,12 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
               lineHeight: 1.02,
             }}
           >
-            {isAdmin ? "Control your movie lineup." : "Step inside and book faster."}
+            {isAdmin ? t("authAdminHeadline") : t("authUserHeadline")}
           </Typography>
           <Typography sx={{ mt: 2, color: "rgba(255,255,255,0.68)", lineHeight: 1.8 }}>
             {isAdmin
-              ? "Sign in to add fresh releases, manage sessions and keep the cinema feed up to date."
-              : "Create an account or log in to reserve seats, track bookings and enjoy a smoother movie night."}
+              ? t("authAdminDescription")
+              : t("authUserDescription")}
           </Typography>
         </Box>
         <Box sx={{ position: "relative", p: { xs: 3, md: 5 } }}>
@@ -105,7 +107,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
               fontWeight: 700,
             }}
           >
-            {isSignup ? "Signup" : "Login"}
+            {isSignup ? t("authSignup") : t("authLogin")}
           </Typography>
           <form onSubmit={handleSubmit}>
             <Box
@@ -120,7 +122,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
               {!isAdmin && isSignup && (
                 <>
                   <FormLabel sx={{ ...labelStyle, color: "rgba(255,255,255,0.76)" }}>
-                    Name
+                    {t("authName")}
                   </FormLabel>
                   <TextField
                     value={inputs.name}
@@ -134,7 +136,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
                 </>
               )}
               <FormLabel sx={{ ...labelStyle, color: "rgba(255,255,255,0.76)" }}>
-                Email
+                {t("authEmail")}
               </FormLabel>
               <TextField
                 value={inputs.email}
@@ -146,7 +148,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
                 sx={fieldStyles}
               />
               <FormLabel sx={{ ...labelStyle, color: "rgba(255,255,255,0.76)" }}>
-                Password
+                {t("authPassword")}
               </FormLabel>
               <TextField
                 value={inputs.password}
@@ -173,7 +175,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
                 fullWidth
                 variant="contained"
               >
-                {isSignup ? "Signup" : "Login"}
+                {isSignup ? t("authSignup") : t("authLogin")}
               </Button>
               {!isAdmin && (
                 <Button
@@ -186,7 +188,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
                   }}
                   fullWidth
                 >
-                  Switch To {isSignup ? "Login" : "Signup"}
+                  {isSignup ? t("authSwitchToLogin") : t("authSwitchToSignup")}
                 </Button>
               )}
             </Box>
