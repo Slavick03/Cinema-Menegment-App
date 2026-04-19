@@ -13,6 +13,7 @@ import {
   getMovieDetails,
   updateMovie,
 } from "../../api-helpers/api-helpers";
+import { useI18n } from "../../i18n/LanguageContext";
 
 const labelProps = {
   mt: 1,
@@ -41,6 +42,7 @@ const AddMovie = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoadingMovie, setIsLoadingMovie] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!isEditing) {
@@ -92,14 +94,14 @@ const AddMovie = () => {
     const trimmedActors = actors.map((item) => item.trim()).filter(Boolean);
 
     if (!trimmedActors.length) {
-      setErrorMessage("Add at least one actor before saving the movie.");
+      setErrorMessage(t("addMovieErrorActorRequired"));
       return;
     }
 
     const normalizedTicketPrice = normalizeTicketPriceInput(inputs.ticketPrice);
 
     if (!Number(normalizedTicketPrice) || Number(normalizedTicketPrice) <= 0) {
-      setErrorMessage("Set a ticket price greater than 0.");
+      setErrorMessage(t("addMovieErrorPriceRequired"));
       return;
     }
 
@@ -151,25 +153,25 @@ const AddMovie = () => {
               mb: 1,
             }}
           >
-            {isEditing ? "Edit Movie" : "Add New Movie"}
+            {isEditing ? t("addMovieEditTitle") : t("addMovieCreateTitle")}
           </Typography>
           <Typography
             textAlign="center"
             sx={{ color: "rgba(255,255,255,0.62)", mb: 3 }}
           >
             {isEditing
-              ? "Refresh the movie details already visible in the cinema catalog."
-              : "Publish a fresh release to the cinema catalog."}
+              ? t("addMovieEditDescription")
+              : t("addMovieCreateDescription")}
           </Typography>
 
           {isLoadingMovie ? (
             <Typography sx={{ color: "rgba(255,255,255,0.72)", textAlign: "center", py: 6 }}>
-              Loading movie details...
+              {t("addMovieLoading")}
             </Typography>
           ) : (
             <>
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
-                Title
+                {t("addMovieTitle")}
               </FormLabel>
               <TextField
                 value={inputs.title}
@@ -180,7 +182,7 @@ const AddMovie = () => {
                 sx={fieldStyles}
               />
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
-                Description
+                {t("addMovieDescriptionLabel")}
               </FormLabel>
               <TextField
                 value={inputs.description}
@@ -193,7 +195,7 @@ const AddMovie = () => {
                 sx={fieldStyles}
               />
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
-                Poster URL
+                {t("addMoviePosterUrl")}
               </FormLabel>
               <TextField
                 value={inputs.posterUrl}
@@ -204,7 +206,7 @@ const AddMovie = () => {
                 sx={fieldStyles}
               />
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
-                Release Date
+                {t("addMovieReleaseDate")}
               </FormLabel>
               <TextField
                 type="date"
@@ -216,7 +218,7 @@ const AddMovie = () => {
                 sx={fieldStyles}
               />
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
-                Ticket Price
+                {t("addMovieTicketPrice")}
               </FormLabel>
               <TextField
                 type="number"
@@ -229,7 +231,7 @@ const AddMovie = () => {
                 sx={fieldStyles}
               />
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
-                Actor
+                {t("addMovieActor")}
               </FormLabel>
               <Box display="flex" gap={1.5} flexDirection={{ xs: "column", sm: "row" }}>
                 <TextField
@@ -263,11 +265,11 @@ const AddMovie = () => {
                     py: 1.25,
                   }}
                 >
-                  Add
+                  {t("addMovieAddActor")}
                 </Button>
               </Box>
               <Typography mt={1.5} sx={{ color: "rgba(255,255,255,0.56)" }}>
-                Actors: {actors.length ? actors.join(", ") : "No actors added yet"}
+                {t("addMovieActors")}: {actors.length ? actors.join(", ") : t("addMovieNoActors")}
               </Typography>
               {errorMessage && (
                 <Typography mt={1.5} sx={{ color: "#ff9aa2" }}>
@@ -275,7 +277,7 @@ const AddMovie = () => {
                 </Typography>
               )}
               <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)", mt: 2 }}>
-                Featured
+                {t("addMovieFeatured")}
               </FormLabel>
               <Checkbox
                 name="featured"
@@ -318,7 +320,7 @@ const AddMovie = () => {
                     },
                   }}
                 >
-                  Cancel
+                  {t("commonCancel")}
                 </Button>
                 <Button
                   type="submit"
@@ -338,11 +340,11 @@ const AddMovie = () => {
                 >
                   {isSubmitting
                     ? isEditing
-                      ? "Saving..."
-                      : "Publishing..."
+                      ? t("commonSaving")
+                      : t("commonPublishing")
                     : isEditing
-                      ? "Save Changes"
-                      : "Add New Movie"}
+                      ? t("commonSaveChanges")
+                      : t("addMovieSubmit")}
                 </Button>
               </Box>
             </>

@@ -5,15 +5,22 @@ import {
   downloadTicketPdf,
   formatTicketDate,
   formatTicketPrice,
+  getPaymentMethodLabel,
   getCustomerName,
   getTicketQrValue,
-  paymentMethodLabels,
 } from "../../utils/ticket-utils";
+import { useI18n } from "../../i18n/LanguageContext";
 
-const VirtualTicket = ({ booking, title = "Virtual Ticket", showDownload = true }) => {
+const VirtualTicket = ({ booking, title, showDownload = true }) => {
   const ticketRef = useRef(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const qrValue = getTicketQrValue(booking);
+  const { locale, t } = useI18n();
+  const qrValue = getTicketQrValue(booking, {
+    ticketUnavailable: t("fallbackTicketUnavailable"),
+    bookingId: "unknown-booking",
+    movieTitle: t("fallbackMovieUnavailable"),
+    customerName: t("fallbackGuest"),
+  });
 
   const handleDownload = async () => {
     try {
@@ -57,7 +64,7 @@ const VirtualTicket = ({ booking, title = "Virtual Ticket", showDownload = true 
                 fontWeight: 800,
               }}
             >
-              {title}
+              {title || t("ticketVirtualTitle")}
             </Typography>
             <Typography
               variant="h5"
@@ -67,7 +74,7 @@ const VirtualTicket = ({ booking, title = "Virtual Ticket", showDownload = true 
             </Typography>
           </Box>
           <Chip
-            label={booking.paymentStatus === "paid" ? "Paid" : "Pending"}
+            label={booking.paymentStatus === "paid" ? t("ticketStatusPaid") : t("ticketStatusPending")}
             sx={{
               bgcolor: "rgba(109,211,255,0.14)",
               color: "#d9f8ff",
@@ -85,15 +92,16 @@ const VirtualTicket = ({ booking, title = "Virtual Ticket", showDownload = true 
           alignItems="center"
         >
           <Box display="grid" gap={1.2}>
-            <Typography><strong>Ticket code:</strong> {booking.ticketCode || "Not assigned yet"}</Typography>
-            <Typography><strong>Guest:</strong> {getCustomerName(booking)}</Typography>
-            <Typography><strong>Phone:</strong> {booking.phoneNumber || "Not provided"}</Typography>
-            <Typography><strong>Date:</strong> {formatTicketDate(booking.date)}</Typography>
-            <Typography><strong>Seat:</strong> {booking.seatNumber || "Not assigned"}</Typography>
+            <Typography><strong>{t("ticketCode")}:</strong> {booking.ticketCode || t("ticketNotAssignedYet")}</Typography>
+            <Typography><strong>{t("ticketGuest")}:</strong> {getCustomerName(booking, t("fallbackGuest"))}</Typography>
+            <Typography><strong>{t("ticketPhone")}:</strong> {booking.phoneNumber || t("ticketNotProvided")}</Typography>
+            <Typography><strong>{t("ticketDate")}:</strong> {formatTicketDate(booking.date, locale)}</Typography>
+            <Typography><strong>{t("ticketSeat")}:</strong> {booking.seatNumber || t("ticketNotAssigned")}</Typography>
             <Typography>
-              <strong>Payment:</strong> {paymentMethodLabels[booking.paymentMethod] || booking.paymentMethod || "Not specified"}
+              <strong>{t("ticketPayment")}:</strong>{" "}
+              {getPaymentMethodLabel(booking.paymentMethod, t)}
             </Typography>
-            <Typography><strong>Total:</strong> {formatTicketPrice(booking.totalPrice)}</Typography>
+            <Typography><strong>{t("ticketTotal")}:</strong> {formatTicketPrice(booking.totalPrice)}</Typography>
           </Box>
 
           <Box
@@ -129,7 +137,7 @@ const VirtualTicket = ({ booking, title = "Virtual Ticket", showDownload = true 
             },
           }}
         >
-          {isDownloading ? "Preparing PDF..." : "Download PDF Ticket"}
+          {isDownloading ? t("ticketPreparingPdf") : t("ticketDownloadPdf")}
         </Button>
       )}
     </Box>

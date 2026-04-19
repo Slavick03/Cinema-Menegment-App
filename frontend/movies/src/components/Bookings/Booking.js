@@ -20,14 +20,9 @@ import VirtualTicket from "./VirtualTicket";
 import {
   formatCalendarDate,
   formatTicketPrice,
-  paymentMethodLabels,
+  getPaymentMethodLabel,
 } from "../../utils/ticket-utils";
-
-const paymentOptions = [
-  { value: "apple_pay", label: "Apple Pay" },
-  { value: "google_pay", label: "Google Pay" },
-  { value: "card", label: "Card Payment" },
-];
+import { useI18n } from "../../i18n/LanguageContext";
 
 const Booking = () => {
   const navigate = useNavigate();
@@ -50,6 +45,13 @@ const Booking = () => {
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewError, setReviewError] = useState("");
   const id = useParams().id;
+  const { locale, t } = useI18n();
+
+  const paymentOptions = [
+    { value: "apple_pay", label: t("paymentApplePay") },
+    { value: "google_pay", label: t("paymentGooglePay") },
+    { value: "card", label: t("paymentCard") },
+  ];
 
   useEffect(() => {
     getMovieDetails(id)
@@ -105,7 +107,7 @@ const Booking = () => {
     e.preventDefault();
 
     if (!selectedSeat) {
-      setErrorMessage("Choose a seat in the hall layout before booking.");
+      setErrorMessage(t("bookingErrorSeatRequired"));
       return;
     }
 
@@ -114,7 +116,7 @@ const Booking = () => {
       !inputs.customerLastName.trim() ||
       !inputs.phoneNumber.trim()
     ) {
-      setErrorMessage("Fill in first name, last name and phone number.");
+      setErrorMessage(t("bookingErrorContactRequired"));
       return;
     }
 
@@ -124,7 +126,7 @@ const Booking = () => {
         setBookedSeats((prevSeats) =>
           prevSeats.includes(selectedSeat) ? prevSeats : [...prevSeats, selectedSeat]
         );
-        setSuccessMessage("Payment completed and your virtual ticket is ready.");
+        setSuccessMessage(t("bookingSuccess"));
         setSelectedSeat("");
       })
       .catch((err) => {
@@ -137,7 +139,7 @@ const Booking = () => {
     e.preventDefault();
 
     if (!reviewInputs.comment.trim()) {
-      setReviewError("Write a short review before sending it.");
+      setReviewError(t("bookingErrorReviewRequired"));
       return;
     }
 
@@ -181,7 +183,7 @@ const Booking = () => {
               fontSize: { xs: "2rem", md: "2.8rem" },
             }}
           >
-            Book Tickets: {movie.title}
+            {t("bookingTitle", { title: movie.title })}
           </Typography>
           <Box
             display="flex"
@@ -218,19 +220,22 @@ const Booking = () => {
                   {movie.description}
                 </Typography>
                 <Typography fontWeight="bold" marginTop={2}>
-                  Starring: {movie.actors.join(", ")}
+                  {t("bookingStarring")}: {movie.actors.join(", ")}
                 </Typography>
                 <Typography fontWeight="bold" marginTop={1.5}>
-                  Release Date: {formatCalendarDate(movie.releaseDate)}
+                  {t("bookingReleaseDate")}: {formatCalendarDate(movie.releaseDate, locale)}
                 </Typography>
                 <Typography fontWeight="bold" marginTop={1.5} sx={{ color: "#ffb08d" }}>
-                  Ticket Price: {formatTicketPrice(movie.ticketPrice)}
+                  {t("bookingTicketPrice")}: {formatTicketPrice(movie.ticketPrice)}
                 </Typography>
                 <Typography fontWeight="bold" marginTop={1.5} sx={{ color: "#6dd3ff" }}>
-                  Rating:{" "}
+                  {t("bookingRating")}:{" "}
                   {movie.ratingsCount
-                    ? `${movie.averageRating} / 5 (${movie.ratingsCount} ratings)`
-                    : "No ratings yet"}
+                    ? t("bookingRatingWithCount", {
+                        rating: movie.averageRating,
+                        count: movie.ratingsCount,
+                      })
+                    : t("bookingNoRatings")}
                 </Typography>
               </Box>
             </Box>
@@ -259,10 +264,10 @@ const Booking = () => {
                       mb: 2,
                     }}
                   >
-                    Booking and Payment
+                    {t("bookingAndPayment")}
                   </Typography>
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                    Booking Date
+                    {t("bookingDate")}
                   </FormLabel>
                   <TextField
                     name="date"
@@ -274,7 +279,7 @@ const Booking = () => {
                     sx={fieldStyles}
                   />
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                    First Name
+                    {t("bookingFirstName")}
                   </FormLabel>
                   <TextField
                     name="customerFirstName"
@@ -285,7 +290,7 @@ const Booking = () => {
                     sx={fieldStyles}
                   />
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                    Last Name
+                    {t("bookingLastName")}
                   </FormLabel>
                   <TextField
                     name="customerLastName"
@@ -296,7 +301,7 @@ const Booking = () => {
                     sx={fieldStyles}
                   />
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                    Phone Number
+                    {t("bookingPhone")}
                   </FormLabel>
                   <TextField
                     name="phoneNumber"
@@ -318,7 +323,7 @@ const Booking = () => {
                     }}
                   >
                     <Typography sx={{ color: "rgba(255,255,255,0.58)", fontSize: "0.86rem" }}>
-                      Selected seat
+                      {t("bookingSelectedSeat")}
                     </Typography>
                     <Typography
                       sx={{
@@ -327,11 +332,10 @@ const Booking = () => {
                         fontSize: "1.4rem",
                       }}
                     >
-                      {selectedSeat || "No seat selected yet"}
+                      {selectedSeat || t("bookingNoSeatSelected")}
                     </Typography>
                     <Typography sx={{ mt: 1.2, color: "rgba(255,255,255,0.62)", lineHeight: 1.7 }}>
-                      Open the interactive hall layout, pick any free chair, and
-                      confirm your booking.
+                      {t("bookingSeatHelp")}
                     </Typography>
                     <Button
                       type="button"
@@ -351,12 +355,12 @@ const Booking = () => {
                         },
                       }}
                     >
-                      Open Seat Map
+                      {t("bookingOpenSeatMap")}
                     </Button>
                   </Box>
 
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 2.5 }}>
-                    Payment Method
+                    {t("bookingPaymentMethod")}
                   </FormLabel>
                   <TextField
                     select
@@ -391,16 +395,16 @@ const Booking = () => {
                         letterSpacing: "0.08em",
                       }}
                     >
-                      Payment summary
+                      {t("bookingPaymentSummary")}
                     </Typography>
                     <Typography sx={{ mt: 1.2 }}>
-                      Ticket price: {formatTicketPrice(movie.ticketPrice)}
+                      {t("bookingTicketPrice")}: {formatTicketPrice(movie.ticketPrice)}
                     </Typography>
                     <Typography sx={{ mt: 0.7 }}>
-                      Payment type: {paymentMethodLabels[inputs.paymentMethod]}
+                      {t("bookingPaymentType")}: {getPaymentMethodLabel(inputs.paymentMethod, t)}
                     </Typography>
                     <Typography sx={{ mt: 0.7 }}>
-                      Seat: {selectedSeat || "Choose a seat first"}
+                      {t("ticketSeat")}: {selectedSeat || t("bookingChooseSeatFirst")}
                     </Typography>
                   </Box>
 
@@ -452,7 +456,7 @@ const Booking = () => {
                       },
                     }}
                   >
-                    Pay and Confirm Ticket
+                    {t("bookingPayConfirm")}
                   </Button>
                 </Box>
               </form>
@@ -471,7 +475,7 @@ const Booking = () => {
                 boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
               }}
             >
-              <VirtualTicket booking={createdBooking} title="Paid Ticket" />
+              <VirtualTicket booking={createdBooking} title={t("ticketPaidTitle")} />
               <Button
                 type="button"
                 variant="outlined"
@@ -487,7 +491,7 @@ const Booking = () => {
                   },
                 }}
               >
-                Open My Bookings
+                {t("bookingOpenMyBookings")}
               </Button>
             </Box>
           )}
@@ -513,11 +517,11 @@ const Booking = () => {
                 variant="h5"
                 sx={{ fontFamily: "'Space Grotesk', sans-serif", mb: 2 }}
               >
-                Leave a Review
+                {t("bookingLeaveReview")}
               </Typography>
               <form onSubmit={handleReviewSubmit}>
                 <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                  Rating
+                  {t("bookingReviewRating")}
                 </FormLabel>
                 <TextField
                   select
@@ -535,7 +539,7 @@ const Booking = () => {
                   ))}
                 </TextField>
                 <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                  Your Review
+                  {t("bookingYourReview")}
                 </FormLabel>
                 <TextField
                   name="comment"
@@ -545,7 +549,7 @@ const Booking = () => {
                   minRows={4}
                   value={reviewInputs.comment}
                   onChange={handleReviewChange}
-                  placeholder="Share what you liked, what stood out, or what could be better."
+                  placeholder={t("bookingReviewPlaceholder")}
                   sx={fieldStyles}
                 />
 
@@ -598,7 +602,7 @@ const Booking = () => {
                     },
                   }}
                 >
-                  Submit Review
+                  {t("bookingSubmitReview")}
                 </Button>
               </form>
             </Box>
@@ -618,12 +622,15 @@ const Booking = () => {
                 variant="h5"
                 sx={{ fontFamily: "'Space Grotesk', sans-serif", mb: 2 }}
               >
-                Viewer Reviews
+                {t("bookingViewerReviews")}
               </Typography>
               <Typography sx={{ mb: 2.5, color: "rgba(255,255,255,0.62)" }}>
                 {movie.ratingsCount
-                  ? `Average user score: ${movie.averageRating} / 5 from ${movie.ratingsCount} ratings`
-                  : "Average user score will appear after the first rating."}
+                  ? t("bookingAverageScore", {
+                      rating: movie.averageRating,
+                      count: movie.ratingsCount,
+                    })
+                  : t("bookingAverageScorePending")}
               </Typography>
               {reviews.length ? (
                 <Box display="flex" flexDirection="column" gap={2}>
@@ -656,15 +663,16 @@ const Booking = () => {
                         {review.userEmail}
                       </Typography>
                       <Typography sx={{ mt: 1.2, color: "rgba(255,255,255,0.46)", fontSize: "0.82rem" }}>
-                        Updated: {new Date(review.updatedAt || review.createdAt).toLocaleString()}
+                        {t("bookingReviewUpdated", {
+                          date: new Date(review.updatedAt || review.createdAt).toLocaleString(locale),
+                        })}
                       </Typography>
                     </Box>
                   ))}
                 </Box>
               ) : (
                 <Typography sx={{ color: "rgba(255,255,255,0.58)", lineHeight: 1.8 }}>
-                  There are no reviews yet. Be the first person to share an opinion
-                  about this movie.
+                  {t("bookingReviewsEmpty")}
                 </Typography>
               )}
             </Box>

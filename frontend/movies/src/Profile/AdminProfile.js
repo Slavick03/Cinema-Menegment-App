@@ -4,12 +4,14 @@ import { deleteMovie, getAdminById } from "../api-helpers/api-helpers";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { Button, Divider, List, ListItem, ListItemText, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { useI18n } from "../i18n/LanguageContext";
 
 const AdminProfile = () => {
   const navigate = useNavigate();
   const [admin, setAdmin] = useState();
   const [errorMessage, setErrorMessage] = useState("");
   const [deletingMovieId, setDeletingMovieId] = useState("");
+  const { t } = useI18n();
 
   useEffect(() => {
     getAdminById()
@@ -70,7 +72,7 @@ const AdminProfile = () => {
               borderRadius={4}
               bgcolor="rgba(255,255,255,0.03)"
             >
-              Email: {admin.email}
+              {t("profileEmail")}: {admin.email}
             </Typography>
           </Box>
         )}
@@ -96,7 +98,7 @@ const AdminProfile = () => {
                 fontSize: { xs: "2rem", md: "2.6rem" },
               }}
             >
-              Added Movies
+              {t("adminAddedMovies")}
             </Typography>
             <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
             {errorMessage && (
@@ -124,8 +126,8 @@ const AdminProfile = () => {
                     >
                       <ListItemText
                         sx={{ margin: 1, width: "auto", textAlign: "left" }}
-                        primary={`Movie: ${movie.title}`}
-                        secondary={`Ticket price: $${Number(movie.ticketPrice || 0).toFixed(2)}`}
+                        primary={`${t("adminMovieLabel")}: ${movie.title}`}
+                        secondary={`${t("addMovieTicketPrice")}: $${Number(movie.ticketPrice || 0).toFixed(2)}`}
                         secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.52)" } }}
                       />
                       <Box
@@ -149,7 +151,7 @@ const AdminProfile = () => {
                             },
                           }}
                         >
-                          Edit
+                          {t("commonEdit")}
                         </Button>
                         <Button
                           variant="contained"
@@ -166,7 +168,7 @@ const AdminProfile = () => {
                             },
                           }}
                         >
-                          {deletingMovieId === movie._id ? "Deleting..." : "Delete"}
+                          {deletingMovieId === movie._id ? t("commonDeleting") : t("commonDelete")}
                         </Button>
                       </Box>
                     </ListItem>
@@ -174,7 +176,7 @@ const AdminProfile = () => {
                 </List>
               ) : (
                 <Typography sx={{ color: "rgba(255,255,255,0.62)", textAlign: "center" }}>
-                  You have not added any movies yet.
+                  {t("adminNoMovies")}
                 </Typography>
               )}
             </Box>
