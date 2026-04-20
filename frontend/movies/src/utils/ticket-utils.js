@@ -32,9 +32,22 @@ export const getPaymentMethodLabel = (paymentMethod, t) => {
     apple_pay: t ? t("paymentApplePay") : "Apple Pay",
     google_pay: t ? t("paymentGooglePay") : "Google Pay",
     card: t ? t("paymentCard") : "Bank Card",
+    reservation: t ? t("paymentReservation") : "Reservation without payment",
   };
 
   return labels[paymentMethod] || paymentMethod || (t ? t("ticketNotSpecified") : "Not specified");
+};
+
+export const getBookingStatusLabel = (paymentStatus, t) => {
+  if (paymentStatus === "paid") {
+    return t ? t("ticketStatusPaid") : "Paid";
+  }
+
+  if (paymentStatus === "reserved") {
+    return t ? t("ticketStatusReserved") : "Reserved";
+  }
+
+  return t ? t("ticketStatusPending") : "Pending";
 };
 
 export const formatTicketPrice = (value) => `$${Number(value || 0).toFixed(2)}`;

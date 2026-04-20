@@ -1,3 +1,8 @@
+import {
+  getReservationReleaseTime,
+  RESERVED_PAYMENT_STATUS,
+} from "./booking-lifecycle.js";
+
 const toIsoString = (value) =>
   value instanceof Date ? value.toISOString() : value;
 
@@ -67,6 +72,10 @@ export const serializeBooking = (booking) => ({
   phoneNumber: booking.phoneNumber,
   paymentMethod: booking.paymentMethod,
   paymentStatus: booking.paymentStatus,
+  reservationReleaseTime:
+    booking.paymentStatus === RESERVED_PAYMENT_STATUS && booking.showtime?.startTime
+      ? toIsoString(getReservationReleaseTime(booking.showtime.startTime))
+      : null,
   totalPrice: booking.totalPrice,
   ticketCode: booking.ticketCode,
   qrCodeValue: booking.qrCodeValue,

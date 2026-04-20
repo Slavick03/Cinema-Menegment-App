@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
+import { cleanupExpiredReservations } from "../utils/booking-lifecycle.js";
 import { serializeBooking, serializeUser } from "../utils/serializers.js";
 
 const hasEmptyValue = (...values) =>
@@ -164,6 +165,7 @@ export const getBookingsOfUser = async (req, res, next) => {
 
   let bookings;
   try {
+    await cleanupExpiredReservations();
     bookings = await prisma.booking.findMany({
       where: { userId: id },
       include: { movie: true, showtime: true, user: true },

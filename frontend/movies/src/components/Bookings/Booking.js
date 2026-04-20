@@ -18,6 +18,7 @@ import {
   deleteMovieReview,
   getBookedSeats,
   getMovieDetails,
+  reserveBooking,
   getStripeConfig,
 } from "../../api-helpers/api-helpers";
 import SeatSelectionModal from "./SeatSelectionModal";
@@ -29,6 +30,13 @@ import {
   getPaymentMethodLabel,
 } from "../../utils/ticket-utils";
 import { useI18n } from "../../i18n/LanguageContext";
+
+const RESERVATION_LOCK_MINUTES = 45;
+
+const getReservationReleaseTime = (showtimeStartTime) =>
+  new Date(
+    new Date(showtimeStartTime).getTime() - RESERVATION_LOCK_MINUTES * 60 * 1000
+  );
 
 const getShowtimeLabel = (showtime, locale) => {
   if (!showtime) {
@@ -98,6 +106,12 @@ const Booking = () => {
   const selectedShowtime = movie?.showtimes?.find(
     (showtime) => showtime._id === inputs.showtime
   );
+  const reservationReleaseTime = selectedShowtime?.startTime
+    ? getReservationReleaseTime(selectedShowtime.startTime)
+    : null;
+  const isReservationClosed = reservationReleaseTime
+    ? reservationReleaseTime <= new Date()
+    : false;
 
   useEffect(() => {
     if (!selectedShowtime?._id) {
@@ -242,8 +256,38 @@ const Booking = () => {
       prevSeats.includes(booking.seatNumber) ? prevSeats : [...prevSeats, booking.seatNumber]
     );
     setSelectedSeat("");
-    setSuccessMessage(t("bookingSuccess"));
+    setSuccessMessage(
+      booking.paymentStatus === "reserved"
+        ? t("bookingReservationSuccess", {
+            time: formatTicketDate(booking.reservationReleaseTime, locale),
+          })
+        : t("bookingSuccess")
+    );
     setErrorMessage("");
+  };
+
+  const handleReserve = async () => {
+    if (!bookingPayload) {
+      return;
+    }
+
+    if (!validateBookingInputs()) {
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setErrorMessage("");
+    setSuccessMessage(t("bookingReservationProcessing"));
+
+    try {
+      const response = await reserveBooking(bookingPayload);
+      handleBookingCreated(response.booking);
+    } catch (error) {
+      setSuccessMessage("");
+      setErrorMessage(error.message);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const reviews = [...comments].sort(
@@ -477,16 +521,53 @@ const Booking = () => {
                       mt: 1.5,
                       p: 2.2,
                       borderRadius: 4,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      bgcolor: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,122,69,0.18)",
+                      bgcolor: "rgba(255,122,69,0.06)",
                     }}
                   >
                     <Typography sx={{ fontWeight: 700 }}>
-                      {t("bookingCardDetails")}
+                      {t("bookingReservationTitle")}
                     </Typography>
-                    <Typography sx={{ mt: 0.8, color: "rgba(255,255,255,0.62)", lineHeight: 1.7 }}>
-                      {t("bookingCardDetailsHint")}
+                    <Typography sx={{ mt: 0.8, color: "rgba(255,255,255,0.68)", lineHeight: 1.7 }}>
+                      {t("bookingReservationHelp")}
                     </Typography>
+                    {selectedShowtime ? (
+                      <Typography sx={{ mt: 1, color: isReservationClosed ? "#ff9b9b" : "#ffb08d" }}>
+                        {isReservationClosed
+                          ? t("bookingReservationUnavailable")
+                          : t("bookingReservationWindow", {
+                              time: formatTicketDate(reservationReleaseTime, locale),
+                            })}
+                      </Typography>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="contained"
+                      onClick={handleReserve}
+                      disabled={
+                        isProcessingPayment || !selectedShowtime || isReservationClosed
+                      }
+                      sx={{
+                        mt: 2,
+                        width: "100%",
+                        py: 1.2,
+                        borderRadius: 999,
+                        bgcolor: "#ffb08d",
+                        color: "#08111b",
+                        fontWeight: 800,
+                        "&:hover": {
+                          bgcolor: "#ffc3a7",
+                        },
+                        "&.Mui-disabled": {
+                          bgcolor: "rgba(255,255,255,0.08)",
+                          color: "rgba(255,255,255,0.38)",
+                        },
+                      }}
+                    >
+                      {isProcessingPayment
+                        ? t("bookingReservationProcessing")
+                        : t("bookingReserveWithoutPayment")}
+                    </Button>
                   </Box>
 
                   <Box
@@ -570,6 +651,13 @@ const Booking = () => {
                     </Typography>
                     {selectedShowtime ? (
                       <Typography sx={{ mt: 0.7 }}>
+                        {t("bookingReservationSummary", {
+                          time: formatTicketDate(reservationReleaseTime, locale),
+                        })}
+                      </Typography>
+                    ) : null}
+                    {selectedShowtime ? (
+                      <Typography sx={{ mt: 0.7 }}>
                         {t("bookingHall")}: {selectedShowtime.hall}
                       </Typography>
                     ) : null}
@@ -631,7 +719,14 @@ const Booking = () => {
                 boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
               }}
             >
-              <VirtualTicket booking={createdBooking} title={t("ticketPaidTitle")} />
+              <VirtualTicket
+                booking={createdBooking}
+                title={
+                  createdBooking.paymentStatus === "reserved"
+                    ? t("ticketReservedTitle")
+                    : t("ticketPaidTitle")
+                }
+              />
               <Button
                 type="button"
                 variant="outlined"

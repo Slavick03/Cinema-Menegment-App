@@ -8,7 +8,7 @@ import {
   deleteAdminManagedReview,
   getAdminById,
 } from "../controller/admin-controller.js";
-import { newBooking } from "../controller/booking-controller.js";
+import { newBooking, reserveBooking } from "../controller/booking-controller.js";
 import {
   addMovie,
   deleteMovieReview,
@@ -155,6 +155,7 @@ test("newBooking creates a booking", async () => {
 
   stubMethod(prisma.showtime, "findUnique", async () => showtimeDocument);
   stubMethod(prisma.user, "findUnique", async () => userDocument);
+  stubMethod(prisma.booking, "deleteMany", async () => ({ count: 0 }));
   const findFirstStub = stubMethod(prisma.booking, "findFirst", async () => null);
   stubMethod(prisma.booking, "create", async ({ data }) => ({
     id: bookingId,
@@ -194,6 +195,80 @@ test("newBooking creates a booking", async () => {
   assert.equal(res.body.booking.totalPrice, 150);
   assert.equal(res.body.booking.paymentMethod, "card");
   assert.equal(findFirstStub.mock.calls[0].arguments[0].where.showtimeId, showtimeId);
+});
+
+test("reserveBooking creates a reservation without payment", async () => {
+  const res = createResponseMock();
+  const movieId = "movie_2";
+  const showtimeId = "showtime_2";
+  const userId = "user_2";
+  const bookingId = "booking_2";
+  const bookingDate = new Date("2026-05-10T20:00:00.000Z");
+
+  const movieDocument = {
+    id: movieId,
+    title: "Dune Part Two",
+    ticketPrice: 180,
+    description: "Sci-fi epic",
+    actors: ["Timothee Chalamet"],
+    releaseDate: "2024-03-01T00:00:00.000Z",
+    posterUrl: "https://example.com/dune.jpg",
+    featured: true,
+    adminId: "admin_2",
+  };
+
+  const showtimeDocument = {
+    id: showtimeId,
+    movieId,
+    startTime: bookingDate,
+    hall: "Hall 2",
+    price: 180,
+    totalSeats: 64,
+    movie: movieDocument,
+  };
+
+  const userDocument = {
+    id: userId,
+    name: "Maria",
+    email: "maria@example.com",
+    password: "hashed-password",
+  };
+
+  stubMethod(prisma.booking, "deleteMany", async () => ({ count: 0 }));
+  stubMethod(prisma.showtime, "findUnique", async () => showtimeDocument);
+  stubMethod(prisma.user, "findUnique", async () => userDocument);
+  stubMethod(prisma.booking, "findFirst", async () => null);
+  stubMethod(prisma.booking, "create", async ({ data }) => ({
+    id: bookingId,
+    ...data,
+    createdAt: bookingDate,
+    updatedAt: bookingDate,
+    movie: movieDocument,
+    showtime: showtimeDocument,
+    user: userDocument,
+  }));
+
+  await reserveBooking(
+    {
+      userId,
+      body: {
+        showtime: showtimeId,
+        user: userId,
+        seatNumber: "b2",
+        customerFirstName: "Maria",
+        customerLastName: "Ionescu",
+        phoneNumber: "+37368111222",
+      },
+    },
+    res,
+  );
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.booking._id, bookingId);
+  assert.equal(res.body.booking.seatNumber, "B2");
+  assert.equal(res.body.booking.paymentMethod, "reservation");
+  assert.equal(res.body.booking.paymentStatus, "reserved");
+  assert.ok(res.body.booking.reservationReleaseTime);
 });
 
 test("newBooking rejects booking creation for another user", async () => {
@@ -367,6 +442,7 @@ test("getAllMovies sorts by rating descending", async () => {
 test("getAdminById returns analytics for admin movies", async () => {
   const res = createResponseMock();
 
+  stubMethod(prisma.booking, "deleteMany", async () => ({ count: 0 }));
   stubMethod(prisma.admin, "findUnique", async () => ({
     id: "admin_analytics_1",
     email: "admin@example.com",
@@ -553,8 +629,8 @@ test("getAdminById returns analytics for admin movies", async () => {
             price: 120,
             totalSeats: 10,
             bookings: [
-              { id: "showtime_booking_1", totalPrice: 120 },
-              { id: "showtime_booking_2", totalPrice: 120 },
+              { id: "showtime_booking_1", totalPrice: 120, paymentStatus: "paid" },
+              { id: "showtime_booking_2", totalPrice: 120, paymentStatus: "paid" },
             ],
           },
           {
@@ -563,7 +639,7 @@ test("getAdminById returns analytics for admin movies", async () => {
             hall: "Hall 2",
             price: 120,
             totalSeats: 20,
-            bookings: [{ id: "showtime_booking_3", totalPrice: 120 }],
+            bookings: [{ id: "showtime_booking_3", totalPrice: 120, paymentStatus: "paid" }],
           },
         ],
       },

@@ -8,6 +8,7 @@ import {
   getBookedSeatsByShowtime,
   getBookingById,
   newBooking,
+  reserveBooking,
 } from "../controller/booking-controller.js";
 
 const bookingsRouter = express.Router();
@@ -16,6 +17,7 @@ bookingsRouter.get("/payment/config", getStripeConfig);
 bookingsRouter.get("/showtime/:showtimeId/seats", getBookedSeatsByShowtime);
 bookingsRouter.post("/payment/intent", authenticateUser, createPaymentIntent);
 bookingsRouter.post("/payment/complete", authenticateUser, completePaymentBooking);
+bookingsRouter.post("/reserve", authenticateUser, reserveBooking);
 bookingsRouter.get("/:id", authenticateUser, getBookingById);
 bookingsRouter.post("/", authenticateUser, newBooking);
 bookingsRouter.delete("/:id", authenticateUser, deleteBooking);

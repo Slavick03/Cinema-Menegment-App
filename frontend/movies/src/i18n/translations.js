@@ -126,7 +126,18 @@ export const translations = {
     bookingSeatHelp:
       "Open the interactive hall layout, pick any free chair, and confirm your booking.",
     bookingOpenSeatMap: "Open Seat Map",
-    bookingPaymentMethod: "Card Payment",
+    bookingPaymentMethod: "Reservation or payment",
+    bookingReservationTitle: "Reserve without payment",
+    bookingReservationHelp:
+      "Hold the seat now and pay later if needed. The reservation stays active until 45 minutes before the session starts.",
+    bookingReservationWindow: "Reservation is valid until {time}.",
+    bookingReservationSummary: "Reservation auto-cancels at {time}.",
+    bookingReservationProcessing: "Creating reservation...",
+    bookingReservationSuccess:
+      "Reservation created successfully. It will be cancelled automatically at {time}.",
+    bookingReservationUnavailable:
+      "Reservations are closed for this session because less than 45 minutes remain before it starts.",
+    bookingReserveWithoutPayment: "Reserve Without Payment",
     bookingCardDetails: "Card details",
     bookingCardDetailsHint:
       "Enter the test card directly in the form below. Stripe securely handles the card fields.",
@@ -179,7 +190,9 @@ export const translations = {
     seatMapConfirm: "Confirm Seat",
     ticketVirtualTitle: "Virtual Ticket",
     ticketPaidTitle: "Paid Ticket",
+    ticketReservedTitle: "Reserved Ticket",
     ticketStatusPaid: "Paid",
+    ticketStatusReserved: "Reserved",
     ticketStatusPending: "Pending",
     ticketCode: "Ticket code",
     ticketNotAssignedYet: "Not assigned yet",
@@ -190,6 +203,7 @@ export const translations = {
     ticketSeat: "Seat",
     ticketNotAssigned: "Not assigned",
     ticketPayment: "Payment",
+    ticketReservationValidUntil: "Reserved until",
     ticketNotSpecified: "Not specified",
     ticketTotal: "Total",
     ticketPreparingPdf: "Preparing PDF...",
@@ -246,6 +260,7 @@ export const translations = {
     paymentApplePay: "Apple Pay",
     paymentGooglePay: "Google Pay",
     paymentCard: "Card Payment",
+    paymentReservation: "Reservation without payment",
     fallbackGuest: "Guest",
     fallbackMovieUnavailable: "Movie unavailable",
     fallbackTicketUnavailable: "Ticket unavailable",
@@ -369,7 +384,18 @@ export const translations = {
     bookingSeatHelp:
       "Откройте интерактивную схему зала, выберите свободное кресло и подтвердите бронирование.",
     bookingOpenSeatMap: "Открыть схему зала",
-    bookingPaymentMethod: "Оплата картой",
+    bookingPaymentMethod: "Бронирование или оплата",
+    bookingReservationTitle: "Бронь без оплаты",
+    bookingReservationHelp:
+      "Закрепите место сейчас и оплатите позже при необходимости. Бронь действует до 45 минут до начала сеанса.",
+    bookingReservationWindow: "Бронь действует до {time}.",
+    bookingReservationSummary: "Бронь автоматически отменится в {time}.",
+    bookingReservationProcessing: "Создаем бронь...",
+    bookingReservationSuccess:
+      "Бронь успешно создана. Она автоматически отменится в {time}.",
+    bookingReservationUnavailable:
+      "Бронирование на этот сеанс уже закрыто, потому что до начала осталось меньше 45 минут.",
+    bookingReserveWithoutPayment: "Забронировать без оплаты",
     bookingCardDetails: "Данные карты",
     bookingCardDetailsHint:
       "Введите тестовую карту прямо в форму ниже. Stripe безопасно обрабатывает поля карты.",
@@ -422,7 +448,9 @@ export const translations = {
     seatMapConfirm: "Подтвердить место",
     ticketVirtualTitle: "Виртуальный билет",
     ticketPaidTitle: "Оплаченный билет",
+    ticketReservedTitle: "Забронированный билет",
     ticketStatusPaid: "Оплачено",
+    ticketStatusReserved: "Забронировано",
     ticketStatusPending: "Ожидает оплаты",
     ticketCode: "Код билета",
     ticketNotAssignedYet: "Пока не назначен",
@@ -433,6 +461,7 @@ export const translations = {
     ticketSeat: "Место",
     ticketNotAssigned: "Не назначено",
     ticketPayment: "Оплата",
+    ticketReservationValidUntil: "Бронь действует до",
     ticketNotSpecified: "Не указано",
     ticketTotal: "Итого",
     ticketPreparingPdf: "Подготовка PDF...",
@@ -489,6 +518,7 @@ export const translations = {
     paymentApplePay: "Apple Pay",
     paymentGooglePay: "Google Pay",
     paymentCard: "Оплата картой",
+    paymentReservation: "Бронь без оплаты",
     fallbackGuest: "Гость",
     fallbackMovieUnavailable: "Фильм недоступен",
     fallbackTicketUnavailable: "Билет недоступен",
@@ -612,7 +642,18 @@ export const translations = {
     bookingSeatHelp:
       "Deschide schema interactiva a salii, alege un scaun liber si confirma rezervarea.",
     bookingOpenSeatMap: "Deschide harta locurilor",
-    bookingPaymentMethod: "Plata cu cardul",
+    bookingPaymentMethod: "Rezervare sau plata",
+    bookingReservationTitle: "Rezerva fara plata",
+    bookingReservationHelp:
+      "Pastreaza locul acum si plateste mai tarziu daca este nevoie. Rezervarea ramane activa pana cu 45 de minute inainte de inceperea sesiunii.",
+    bookingReservationWindow: "Rezervarea este valabila pana la {time}.",
+    bookingReservationSummary: "Rezervarea se anuleaza automat la {time}.",
+    bookingReservationProcessing: "Se creeaza rezervarea...",
+    bookingReservationSuccess:
+      "Rezervarea a fost creata cu succes. Va fi anulata automat la {time}.",
+    bookingReservationUnavailable:
+      "Rezervarile sunt inchise pentru aceasta sesiune deoarece au ramas mai putin de 45 de minute pana la start.",
+    bookingReserveWithoutPayment: "Rezerva Fara Plata",
     bookingCardDetails: "Datele cardului",
     bookingCardDetailsHint:
       "Introdu cardul de test direct in formularul de mai jos. Stripe gestioneaza in siguranta campurile cardului.",
@@ -666,7 +707,9 @@ export const translations = {
     seatMapConfirm: "Confirma locul",
     ticketVirtualTitle: "Bilet virtual",
     ticketPaidTitle: "Bilet platit",
+    ticketReservedTitle: "Bilet rezervat",
     ticketStatusPaid: "Platit",
+    ticketStatusReserved: "Rezervat",
     ticketStatusPending: "In asteptare",
     ticketCode: "Cod bilet",
     ticketNotAssignedYet: "Nu este alocat inca",
@@ -677,6 +720,7 @@ export const translations = {
     ticketSeat: "Loc",
     ticketNotAssigned: "Nealocat",
     ticketPayment: "Plata",
+    ticketReservationValidUntil: "Rezervat pana la",
     ticketNotSpecified: "Nespecificat",
     ticketTotal: "Total",
     ticketPreparingPdf: "Se pregateste PDF-ul...",
@@ -733,6 +777,7 @@ export const translations = {
     paymentApplePay: "Apple Pay",
     paymentGooglePay: "Google Pay",
     paymentCard: "Plata cu cardul",
+    paymentReservation: "Rezervare fara plata",
     fallbackGuest: "Vizitator",
     fallbackMovieUnavailable: "Filmul nu este disponibil",
     fallbackTicketUnavailable: "Bilet indisponibil",

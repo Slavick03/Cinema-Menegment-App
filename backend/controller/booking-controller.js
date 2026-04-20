@@ -1,17 +1,30 @@
 import crypto from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { getStripeClient } from "../lib/stripe.js";
+import {
+  cleanupExpiredReservations,
+  getReservationReleaseTime,
+  PAID_PAYMENT_STATUS,
+  RESERVED_PAYMENT_STATUS,
+  RESERVATION_PAYMENT_METHOD,
+} from "../utils/booking-lifecycle.js";
 import { serializeBooking } from "../utils/serializers.js";
 
 const hasEmptyValue = (...values) =>
   values.some((value) => typeof value !== "string" || value.trim() === "");
 
-const validPaymentMethods = new Set(["apple_pay", "google_pay", "card"]);
+const validPaymentMethods = new Set([
+  "apple_pay",
+  "google_pay",
+  "card",
+  RESERVATION_PAYMENT_METHOD,
+]);
+const onlinePaymentMethods = new Set(["apple_pay", "google_pay", "card"]);
 const normalizePhoneNumber = (phoneNumber) => `${phoneNumber || ""}`.trim();
 const isValidPhoneNumber = (phoneNumber) =>
   /^[0-9+\-\s()]{7,20}$/.test(phoneNumber);
-const createTicketCode = () =>
-  `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+const createTicketCode = (prefix = "TKT") =>
+  `${prefix}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 const getStripeCurrency = () =>
   `${process.env.STRIPE_CURRENCY || "usd"}`.trim().toLowerCase();
 const getStripePublishableKey = () =>
@@ -27,6 +40,11 @@ const includeBookingRelations = {
 const ensureAuthenticatedUserMatches = (authenticatedUserId, userId) =>
   authenticatedUserId && authenticatedUserId === userId;
 
+const getSeatUnavailableMessage = (paymentStatus) =>
+  paymentStatus === RESERVED_PAYMENT_STATUS
+    ? "This seat is already reserved for the selected showtime"
+    : "This seat is already booked for the selected showtime";
+
 const validateBookingPayload = async ({
   showtime,
   user,
@@ -35,6 +53,7 @@ const validateBookingPayload = async ({
   customerLastName,
   phoneNumber,
   paymentMethod,
+  bookingMode = "paid",
 }) => {
   const normalizedSeatNumber = `${seatNumber || ""}`.trim().toUpperCase();
   const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
@@ -70,11 +89,23 @@ const validateBookingPayload = async ({
     return { status: 422, payload: { message: "Invalid payment method" } };
   }
 
+  if (bookingMode === "paid" && !onlinePaymentMethods.has(paymentMethod)) {
+    return { status: 422, payload: { message: "Invalid payment method" } };
+  }
+
+  if (bookingMode === "reserved" && paymentMethod !== RESERVATION_PAYMENT_METHOD) {
+    return {
+      status: 422,
+      payload: { message: "Reservation bookings must use reservation payment method" },
+    };
+  }
+
   let existingMovie;
   let existingShowtime;
   let existingUser;
 
   try {
+    await cleanupExpiredReservations();
     [existingShowtime, existingUser] = await Promise.all([
       prisma.showtime.findUnique({
         where: { id: showtime },
@@ -95,6 +126,19 @@ const validateBookingPayload = async ({
   }
 
   existingMovie = existingShowtime.movie;
+
+  if (
+    bookingMode === "reserved" &&
+    getReservationReleaseTime(existingShowtime.startTime) <= new Date()
+  ) {
+    return {
+      status: 422,
+      payload: {
+        message:
+          "Reservations close 45 minutes before the showtime starts",
+      },
+    };
+  }
 
   if (
     !Number.isFinite(Number(existingShowtime.price)) ||
@@ -125,7 +169,9 @@ const validateBookingPayload = async ({
   if (existingBooking) {
     return {
       status: 409,
-      payload: { message: "This seat is already booked for the selected showtime" },
+      payload: {
+        message: getSeatUnavailableMessage(existingBooking.paymentStatus),
+      },
     };
   }
 
@@ -141,6 +187,64 @@ const validateBookingPayload = async ({
   };
 };
 
+const createBookingRecord = async ({
+  bookingMode,
+  paymentMethod,
+  stripePaymentIntentId,
+  existingMovie,
+  existingShowtime,
+  normalizedBookingDate,
+  normalizedSeatNumber,
+  normalizedFirstName,
+  normalizedLastName,
+  normalizedPhoneNumber,
+  userId,
+}) => {
+  const isReservedBooking = bookingMode === "reserved";
+  const ticketCode = createTicketCode(isReservedBooking ? "RSV" : "TKT");
+  const totalPrice = Number(existingShowtime.price);
+  const reservationReleaseTime = getReservationReleaseTime(
+    existingShowtime.startTime,
+  );
+  const qrCodeValue = buildQrCodeValue({
+    ticketCode,
+    movie: existingMovie,
+    showtime: existingShowtime,
+    bookingDate: normalizedBookingDate,
+    seatNumber: normalizedSeatNumber,
+    customerName: `${normalizedFirstName} ${normalizedLastName}`,
+    phoneNumber: normalizedPhoneNumber,
+    paymentMethod,
+    totalPrice,
+    stripePaymentIntentId,
+    bookingStatus: isReservedBooking
+      ? RESERVED_PAYMENT_STATUS
+      : PAID_PAYMENT_STATUS,
+    reservationReleaseTime,
+  });
+
+  return prisma.booking.create({
+    data: {
+      movieId: existingMovie.id,
+      showtimeId: existingShowtime.id,
+      date: normalizedBookingDate,
+      seatNumber: normalizedSeatNumber,
+      customerFirstName: normalizedFirstName,
+      customerLastName: normalizedLastName,
+      phoneNumber: normalizedPhoneNumber,
+      paymentMethod,
+      paymentStatus: isReservedBooking
+        ? RESERVED_PAYMENT_STATUS
+        : PAID_PAYMENT_STATUS,
+      totalPrice,
+      ticketCode,
+      qrCodeValue,
+      userId,
+    },
+    include: includeBookingRelations,
+  });
+};
+
 const buildQrCodeValue = ({
   ticketCode,
   movie,
@@ -152,6 +256,8 @@ const buildQrCodeValue = ({
   paymentMethod,
   totalPrice,
   stripePaymentIntentId,
+  bookingStatus,
+  reservationReleaseTime,
 }) =>
   JSON.stringify({
     ticketCode,
@@ -164,8 +270,10 @@ const buildQrCodeValue = ({
     customerName,
     phoneNumber,
     paymentMethod,
+    bookingStatus,
     totalPrice,
     stripePaymentIntentId,
+    reservationReleaseTime: reservationReleaseTime?.toISOString() || null,
   });
 
 export const getStripeConfig = async (req, res, next) => {
@@ -198,6 +306,10 @@ export const createPaymentIntent = async (req, res, next) => {
   }
 
   const { showtime, paymentMethod } = req.body;
+  if (!onlinePaymentMethods.has(paymentMethod)) {
+    return res.status(422).json({ message: "Invalid payment method" });
+  }
+
   const {
     normalizedSeatNumber,
     normalizedPhoneNumber,
@@ -296,42 +408,22 @@ export const newBooking = async (req, res, next) => {
     });
   }
 
-  let booking;
-
   try {
-    const ticketCode = createTicketCode();
-    const totalPrice = Number(existingShowtime.price);
-    const qrCodeValue = buildQrCodeValue({
-      ticketCode,
-      movie: existingMovie,
-      showtime: existingShowtime,
-      bookingDate: normalizedBookingDate,
-      seatNumber: normalizedSeatNumber,
-      customerName: `${normalizedFirstName} ${normalizedLastName}`,
-      phoneNumber: normalizedPhoneNumber,
+    const booking = await createBookingRecord({
+      bookingMode: "paid",
       paymentMethod,
-      totalPrice,
       stripePaymentIntentId,
+      existingMovie,
+      existingShowtime,
+      normalizedBookingDate,
+      normalizedSeatNumber,
+      normalizedFirstName,
+      normalizedLastName,
+      normalizedPhoneNumber,
+      userId: req.userId,
     });
 
-    booking = await prisma.booking.create({
-      data: {
-        movieId: existingMovie.id,
-        showtimeId: showtime,
-        date: normalizedBookingDate,
-        seatNumber: normalizedSeatNumber,
-        customerFirstName: normalizedFirstName,
-        customerLastName: normalizedLastName,
-        phoneNumber: normalizedPhoneNumber,
-        paymentMethod,
-        paymentStatus: "paid",
-        totalPrice,
-        ticketCode,
-        qrCodeValue,
-        userId: req.userId,
-      },
-      include: includeBookingRelations,
-    });
+    return res.status(201).json({ booking: serializeBooking(booking) });
   } catch (err) {
     if (err?.code === "P2002") {
       return res.status(409).json({
@@ -341,8 +433,61 @@ export const newBooking = async (req, res, next) => {
 
     return res.status(500).json({ message: "Unable to create a booking" });
   }
+};
 
-  return res.status(201).json({ booking: serializeBooking(booking) });
+export const reserveBooking = async (req, res, next) => {
+  const { user } = req.body;
+
+  if (!ensureAuthenticatedUserMatches(req.userId, user)) {
+    return res.status(403).json({
+      message: "You can only create bookings for your own account",
+    });
+  }
+
+  const validationResult = await validateBookingPayload({
+    ...req.body,
+    paymentMethod: RESERVATION_PAYMENT_METHOD,
+    bookingMode: "reserved",
+  });
+
+  if (validationResult.status) {
+    return res.status(validationResult.status).json(validationResult.payload);
+  }
+
+  const {
+    normalizedSeatNumber,
+    normalizedPhoneNumber,
+    normalizedFirstName,
+    normalizedLastName,
+    normalizedBookingDate,
+    existingMovie,
+    existingShowtime,
+  } = validationResult;
+
+  try {
+    const booking = await createBookingRecord({
+      bookingMode: "reserved",
+      paymentMethod: RESERVATION_PAYMENT_METHOD,
+      existingMovie,
+      existingShowtime,
+      normalizedBookingDate,
+      normalizedSeatNumber,
+      normalizedFirstName,
+      normalizedLastName,
+      normalizedPhoneNumber,
+      userId: req.userId,
+    });
+
+    return res.status(201).json({ booking: serializeBooking(booking) });
+  } catch (err) {
+    if (err?.code === "P2002") {
+      return res.status(409).json({
+        message: "This seat is already reserved for the selected showtime",
+      });
+    }
+
+    return res.status(500).json({ message: "Unable to reserve a booking" });
+  }
 };
 
 export const completePaymentBooking = async (req, res, next) => {
@@ -428,6 +573,7 @@ export const getBookedSeatsByShowtime = async (req, res, next) => {
   let bookings;
 
   try {
+    await cleanupExpiredReservations();
     bookings = await prisma.booking.findMany({
       where: {
         showtimeId,
@@ -452,6 +598,7 @@ export const getBookingById = async (req, res, next) => {
 
   let booking;
   try {
+    await cleanupExpiredReservations();
     booking = await prisma.booking.findUnique({
       where: { id },
       include: includeBookingRelations,

@@ -104,6 +104,25 @@ export const newBooking = async (data) => {
   );
 };
 
+export const reserveBooking = async (data) => {
+  return request(
+    () =>
+      axios.post(
+        "/booking/reserve",
+        {
+          showtime: data.showtime,
+          seatNumber: data.seatNumber,
+          customerFirstName: data.customerFirstName,
+          customerLastName: data.customerLastName,
+          phoneNumber: data.phoneNumber,
+          user: localStorage.getItem("userId"),
+        },
+        getAuthHeaders(),
+      ),
+    "Unable to reserve booking"
+  );
+};
+
 export const getStripeConfig = async () => {
   return request(() => axios.get("/booking/payment/config"), "Unable to load Stripe settings");
 };

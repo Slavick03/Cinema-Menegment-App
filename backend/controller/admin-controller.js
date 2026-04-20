@@ -3,6 +3,10 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { verifyToken } from "../middleware/auth.js";
 import {
+  cleanupExpiredReservations,
+  PAID_PAYMENT_STATUS,
+} from "../utils/booking-lifecycle.js";
+import {
   serializeAdmin,
   serializeBooking,
   serializeComment,
@@ -39,11 +43,14 @@ const getShowtimeOccupancyRate = (showtime) => {
 
 const buildMovieAnalytics = (movie) => {
   const bookings = Array.isArray(movie.bookings) ? movie.bookings : [];
+  const paidBookings = bookings.filter(
+    (booking) => booking.paymentStatus === PAID_PAYMENT_STATUS,
+  );
   const showtimes = Array.isArray(movie.showtimes) ? movie.showtimes : [];
   const comments = Array.isArray(movie.comments) ? movie.comments : [];
 
   const totalBookings = bookings.length;
-  const revenue = bookings.reduce(
+  const revenue = paidBookings.reduce(
     (sum, booking) => sum + (Number(booking.totalPrice) || 0),
     0,
   );
@@ -69,7 +76,10 @@ const buildMovieAnalytics = (movie) => {
       bookingsCount: getShowtimeBookingCount(showtime),
       occupancyRate: getShowtimeOccupancyRate(showtime),
       revenue: (Array.isArray(showtime.bookings) ? showtime.bookings : []).reduce(
-        (sum, booking) => sum + (Number(booking.totalPrice) || 0),
+        (sum, booking) =>
+          booking.paymentStatus === PAID_PAYMENT_STATUS
+            ? sum + (Number(booking.totalPrice) || 0)
+            : sum,
         0,
       ),
     }))
@@ -266,6 +276,7 @@ export const getAdminById = async (req, res, next) => {
 
   let admin;
   try {
+    await cleanupExpiredReservations();
     admin = await prisma.admin.findUnique({
       where: { id },
       include: {
@@ -289,6 +300,7 @@ export const getAdminById = async (req, res, next) => {
                   select: {
                     id: true,
                     totalPrice: true,
+                    paymentStatus: true,
                   },
                 },
               },

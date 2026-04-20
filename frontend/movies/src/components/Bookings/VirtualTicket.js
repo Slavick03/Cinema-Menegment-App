@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import {
   downloadTicketPdf,
+  getBookingStatusLabel,
   formatTicketDate,
   formatTicketPrice,
   getPaymentMethodLabel,
@@ -15,6 +16,7 @@ const VirtualTicket = ({ booking, title, showDownload = true }) => {
   const ticketRef = useRef(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const { locale, t } = useI18n();
+  const isReserved = booking.paymentStatus === "reserved";
   const qrValue = getTicketQrValue(booking, {
     ticketUnavailable: t("fallbackTicketUnavailable"),
     bookingId: "unknown-booking",
@@ -74,11 +76,15 @@ const VirtualTicket = ({ booking, title, showDownload = true }) => {
             </Typography>
           </Box>
           <Chip
-            label={booking.paymentStatus === "paid" ? t("ticketStatusPaid") : t("ticketStatusPending")}
+            label={getBookingStatusLabel(booking.paymentStatus, t)}
             sx={{
-              bgcolor: "rgba(109,211,255,0.14)",
-              color: "#d9f8ff",
-              border: "1px solid rgba(109,211,255,0.24)",
+              bgcolor: isReserved
+                ? "rgba(255,122,69,0.14)"
+                : "rgba(109,211,255,0.14)",
+              color: isReserved ? "#ffd9c9" : "#d9f8ff",
+              border: isReserved
+                ? "1px solid rgba(255,122,69,0.24)"
+                : "1px solid rgba(109,211,255,0.24)",
               fontWeight: 700,
             }}
           />
@@ -104,6 +110,12 @@ const VirtualTicket = ({ booking, title, showDownload = true }) => {
               <strong>{t("ticketPayment")}:</strong>{" "}
               {getPaymentMethodLabel(booking.paymentMethod, t)}
             </Typography>
+            {booking.reservationReleaseTime ? (
+              <Typography>
+                <strong>{t("ticketReservationValidUntil")}:</strong>{" "}
+                {formatTicketDate(booking.reservationReleaseTime, locale)}
+              </Typography>
+            ) : null}
             <Typography><strong>{t("ticketTotal")}:</strong> {formatTicketPrice(booking.totalPrice)}</Typography>
           </Box>
 
