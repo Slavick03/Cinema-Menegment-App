@@ -11,6 +11,7 @@ const Admin = () => {
 
   const onResReceived = (data) => {
     dispatch(adminActions.login());
+    localStorage.removeItem("userId");
     localStorage.setItem("adminId", data.id);
     localStorage.setItem("token", data.token);
     navigate("/");

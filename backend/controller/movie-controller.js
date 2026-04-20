@@ -1,5 +1,5 @@
-import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
+import { verifyToken } from "../middleware/auth.js";
 import {
   serializeComment,
   serializeMovie,
@@ -21,6 +21,18 @@ const normalizeTicketPriceValue = (value) => {
   }
 
   return Number(value.trim().replace(",", "."));
+};
+
+const normalizeSeatCountValue = (value) => {
+  if (typeof value === "number") {
+    return Math.trunc(value);
+  }
+
+  if (typeof value !== "string") {
+    return Number.NaN;
+  }
+
+  return Math.trunc(Number(value.trim()));
 };
 
 const parseMovieReleaseDate = (value) => {
@@ -54,21 +66,76 @@ const parseMovieReleaseDate = (value) => {
   return parsedDate;
 };
 
+const parseShowtimeDateTime = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const parsedDate = new Date(trimmedValue);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const normalizeShowtimes = (showtimes, fallbackTicketPrice) => {
+  if (!Array.isArray(showtimes)) {
+    return [];
+  }
+
+  return showtimes
+    .map((showtime) => {
+      const startTime = parseShowtimeDateTime(showtime?.startTime);
+      const hall = `${showtime?.hall || ""}`.trim();
+      const price =
+        showtime?.price === undefined || showtime?.price === null || `${showtime.price}`.trim() === ""
+          ? fallbackTicketPrice
+          : normalizeTicketPriceValue(showtime.price);
+      const totalSeats = normalizeSeatCountValue(showtime?.totalSeats);
+
+      if (
+        !startTime ||
+        !hall ||
+        !Number.isFinite(price) ||
+        price <= 0 ||
+        !Number.isInteger(totalSeats) ||
+        totalSeats <= 0
+      ) {
+        return null;
+      }
+
+      return {
+        startTime,
+        hall,
+        price,
+        totalSeats,
+      };
+    })
+    .filter(Boolean);
+};
+
+const getShowtimeSignature = (showtime) =>
+  JSON.stringify({
+    startTime:
+      showtime.startTime instanceof Date
+        ? showtime.startTime.toISOString()
+        : new Date(showtime.startTime).toISOString(),
+    hall: `${showtime.hall || ""}`.trim(),
+    price: Number(showtime.price),
+    totalSeats: Number(showtime.totalSeats),
+  });
+
 const getAdminIdFromToken = (authHeader = "") => {
-  const extractedToken = authHeader.startsWith("Bearer ")
-    ? authHeader.split(" ")[1]
-    : "";
+  const { payload, error } = verifyToken(authHeader);
 
-  if (!extractedToken) {
-    return { error: "Token not found" };
+  if (error) {
+    return { error };
   }
 
-  try {
-    const decrypted = jwt.verify(extractedToken, process.env.SECRET_KEY);
-    return { adminId: decrypted.id };
-  } catch (err) {
-    return { error: err.message };
-  }
+  return { adminId: payload.id };
 };
 
 const mapRatingStats = (ratingStats) =>
@@ -103,6 +170,81 @@ const getMovieRatingsMap = async (movieIds) => {
   return mapRatingStats(ratingStats);
 };
 
+const parseMovieQueryDate = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return parseMovieReleaseDate(value);
+};
+
+const normalizeMovieStatus = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+};
+
+const normalizeSortField = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().toLowerCase();
+};
+
+const normalizeSortOrder = (value) => {
+  if (typeof value !== "string") {
+    return "desc";
+  }
+
+  return value.trim().toLowerCase() === "asc" ? "asc" : "desc";
+};
+
+const getMovieStatusPredicate = (status, now) => {
+  if (status === "featured") {
+    return (movie) => movie.featured;
+  }
+
+  if (status === "upcoming") {
+    return (movie) => movie.releaseDate > now;
+  }
+
+  if (status === "now_showing") {
+    return (movie) => movie.releaseDate <= now;
+  }
+
+  return null;
+};
+
+const sortMovies = (movies, sortBy, sortOrder) => {
+  if (!sortBy) {
+    return movies;
+  }
+
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+  const sortedMovies = [...movies];
+
+  sortedMovies.sort((leftMovie, rightMovie) => {
+    if (sortBy === "price") {
+      return (leftMovie.ticketPrice - rightMovie.ticketPrice) * sortDirection;
+    }
+
+    if (sortBy === "rating") {
+      if (leftMovie.averageRating === rightMovie.averageRating) {
+        return (leftMovie.ratingsCount - rightMovie.ratingsCount) * sortDirection;
+      }
+
+      return (leftMovie.averageRating - rightMovie.averageRating) * sortDirection;
+    }
+
+    return 0;
+  });
+
+  return sortedMovies;
+};
+
 export const addMovie = async (req, res, next) => {
   const { adminId, error } = getAdminIdFromToken(req.headers.authorization || "");
 
@@ -118,12 +260,14 @@ export const addMovie = async (req, res, next) => {
     featured,
     actors,
     ticketPrice,
+    showtimes,
   } = req.body;
   const normalizedActors = Array.isArray(actors)
     ? actors.map((actor) => `${actor}`.trim()).filter(Boolean)
     : [];
   const normalizedTicketPrice = normalizeTicketPriceValue(ticketPrice);
   const normalizedReleaseDate = parseMovieReleaseDate(releaseDate);
+  const normalizedShowtimes = normalizeShowtimes(showtimes, normalizedTicketPrice);
 
   if (hasEmptyValue(title, description, posterUrl, releaseDate)) {
     return res.status(422).json({ message: "Invalid Inputs" });
@@ -141,6 +285,10 @@ export const addMovie = async (req, res, next) => {
 
   if (!normalizedActors.length) {
     return res.status(422).json({ message: "At least one actor is required" });
+  }
+
+  if (!normalizedShowtimes.length) {
+    return res.status(422).json({ message: "Add at least one valid showtime" });
   }
 
   let movie;
@@ -163,6 +311,14 @@ export const addMovie = async (req, res, next) => {
         posterUrl: posterUrl.trim(),
         ticketPrice: normalizedTicketPrice,
         title: title.trim(),
+        showtimes: {
+          create: normalizedShowtimes,
+        },
+      },
+      include: {
+        showtimes: {
+          orderBy: { startTime: "asc" },
+        },
       },
     });
   } catch (err) {
@@ -193,12 +349,14 @@ export const updateMovie = async (req, res, next) => {
     featured,
     actors,
     ticketPrice,
+    showtimes,
   } = req.body;
   const normalizedActors = Array.isArray(actors)
     ? actors.map((actor) => `${actor}`.trim()).filter(Boolean)
     : [];
   const normalizedTicketPrice = normalizeTicketPriceValue(ticketPrice);
   const normalizedReleaseDate = parseMovieReleaseDate(releaseDate);
+  const normalizedShowtimes = normalizeShowtimes(showtimes, normalizedTicketPrice);
 
   if (hasEmptyValue(title, description, posterUrl, releaseDate)) {
     return res.status(422).json({ message: "Invalid Inputs" });
@@ -216,6 +374,10 @@ export const updateMovie = async (req, res, next) => {
 
   if (!normalizedActors.length) {
     return res.status(422).json({ message: "At least one actor is required" });
+  }
+
+  if (!normalizedShowtimes.length) {
+    return res.status(422).json({ message: "Add at least one valid showtime" });
   }
 
   let movie;
@@ -238,6 +400,39 @@ export const updateMovie = async (req, res, next) => {
       .json({ message: "You can edit only your own movies" });
   }
 
+  let existingShowtimes;
+
+  try {
+    existingShowtimes = await prisma.showtime.findMany({
+      where: { movieId: id },
+      include: {
+        _count: {
+          select: { bookings: true },
+        },
+      },
+      orderBy: { startTime: "asc" },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to validate existing showtimes" });
+  }
+
+  const hasBookedShowtimes = existingShowtimes.some(
+    (showtime) => showtime._count?.bookings > 0
+  );
+  const showtimesChanged =
+    existingShowtimes.length !== normalizedShowtimes.length ||
+    existingShowtimes.some(
+      (showtime, index) =>
+        getShowtimeSignature(showtime) !== getShowtimeSignature(normalizedShowtimes[index])
+    );
+
+  if (hasBookedShowtimes && showtimesChanged) {
+    return res.status(409).json({
+      message:
+        "This movie already has bookings. Update the showtimes only after moving or cancelling existing bookings.",
+    });
+  }
+
   try {
     movie = await prisma.movie.update({
       where: { id },
@@ -249,6 +444,15 @@ export const updateMovie = async (req, res, next) => {
         featured: Boolean(featured),
         actors: normalizedActors,
         ticketPrice: normalizedTicketPrice,
+        showtimes: {
+          deleteMany: {},
+          create: normalizedShowtimes,
+        },
+      },
+      include: {
+        showtimes: {
+          orderBy: { startTime: "asc" },
+        },
       },
     });
   } catch (err) {
@@ -306,11 +510,50 @@ export const deleteMovie = async (req, res, next) => {
 };
 
 export const getAllMovies = async (req, res, next) => {
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const releaseDateFrom = parseMovieQueryDate(req.query.releaseDateFrom);
+  const releaseDateTo = parseMovieQueryDate(req.query.releaseDateTo);
+  const status = normalizeMovieStatus(req.query.status);
+  const sortBy = normalizeSortField(req.query.sortBy);
+  const sortOrder = normalizeSortOrder(req.query.sortOrder);
+  const statusPredicate = getMovieStatusPredicate(status, new Date());
+  const where = {};
+
+  if (search) {
+    where.title = {
+      contains: search,
+      mode: "insensitive",
+    };
+  }
+
+  if (releaseDateFrom || releaseDateTo) {
+    where.releaseDate = {};
+
+    if (releaseDateFrom) {
+      where.releaseDate.gte = releaseDateFrom;
+    }
+
+    if (releaseDateTo) {
+      where.releaseDate.lte = releaseDateTo;
+    }
+  }
+
   let movies;
   let ratingsMap;
 
   try {
-    movies = await prisma.movie.findMany();
+    movies = await prisma.movie.findMany({
+      where,
+      include: {
+        showtimes: {
+          orderBy: { startTime: "asc" },
+        },
+      },
+      orderBy:
+        sortBy === "price"
+          ? { ticketPrice: sortOrder }
+          : { releaseDate: "desc" },
+    });
     ratingsMap = await getMovieRatingsMap(movies.map((movie) => movie.id));
   } catch (err) {
     return res.status(500).json({ message: "Request Failed" });
@@ -329,7 +572,12 @@ export const getAllMovies = async (req, res, next) => {
     };
   });
 
-  return res.status(200).json({ movies: moviesWithRatings });
+  const filteredMovies = statusPredicate
+    ? moviesWithRatings.filter(statusPredicate)
+    : moviesWithRatings;
+  const sortedMovies = sortMovies(filteredMovies, sortBy, sortOrder);
+
+  return res.status(200).json({ movies: sortedMovies });
 };
 
 export const getMovieById = async (req, res, next) => {
@@ -346,6 +594,11 @@ export const getMovieById = async (req, res, next) => {
     [movie, comments, ratingsMap] = await Promise.all([
       prisma.movie.findUnique({
         where: { id },
+        include: {
+          showtimes: {
+            orderBy: { startTime: "asc" },
+          },
+        },
       }),
       prisma.comment.findMany({
         where: { movieId: id },
@@ -378,7 +631,22 @@ export const getMovieById = async (req, res, next) => {
 
 export const addMovieReview = async (req, res, next) => {
   const movieId = req.params.id;
-  const { user: userId, rating, comment } = req.body;
+  const { payload, error } = verifyToken(req.headers.authorization || "");
+
+  if (error) {
+    return res.status(401).json({ message: error });
+  }
+
+  const userId = payload.id;
+  const { user: requestedUserId, rating, comment } = req.body;
+
+  if (
+    requestedUserId !== undefined &&
+    requestedUserId !== null &&
+    `${requestedUserId}`.trim() !== userId
+  ) {
+    return res.status(403).json({ message: "You can only add reviews from your own account" });
+  }
 
   if (!isValidObjectId(movieId) || !isValidObjectId(userId)) {
     return res.status(400).json({ message: "Invalid movie or user ID" });
@@ -457,6 +725,78 @@ export const addMovieReview = async (req, res, next) => {
 
   return res.status(200).json({
     message: "Review added successfully",
+    comments: comments.map(serializeComment),
+    averageRating: ratingSummary.averageRating,
+    ratingsCount: ratingSummary.ratingsCount,
+  });
+};
+
+export const deleteMovieReview = async (req, res, next) => {
+  const { id: movieId, reviewId } = req.params;
+  const { payload, error } = verifyToken(req.headers.authorization || "");
+
+  if (error) {
+    return res.status(401).json({ message: error });
+  }
+
+  const userId = payload.id;
+
+  if (!isValidObjectId(movieId) || !isValidObjectId(reviewId) || !isValidObjectId(userId)) {
+    return res.status(400).json({ message: "Invalid movie, review or user ID" });
+  }
+
+  let review;
+
+  try {
+    review = await prisma.comment.findUnique({
+      where: { id: reviewId },
+      select: {
+        id: true,
+        movieId: true,
+        userId: true,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to validate review" });
+  }
+
+  if (!review || review.movieId !== movieId) {
+    return res.status(404).json({ message: "Review not found" });
+  }
+
+  if (review.userId !== userId) {
+    return res.status(403).json({ message: "You can only delete your own reviews" });
+  }
+
+  try {
+    await prisma.comment.delete({
+      where: { id: reviewId },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to delete review" });
+  }
+
+  let comments;
+  let ratingsMap;
+  try {
+    [comments, ratingsMap] = await Promise.all([
+      prisma.comment.findMany({
+        where: { movieId },
+        orderBy: { updatedAt: "desc" },
+      }),
+      getMovieRatingsMap([movieId]),
+    ]);
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to fetch updated reviews" });
+  }
+
+  const ratingSummary = ratingsMap[movieId] || {
+    averageRating: 0,
+    ratingsCount: 0,
+  };
+
+  return res.status(200).json({
+    message: "Review deleted successfully",
     comments: comments.map(serializeComment),
     averageRating: ratingSummary.averageRating,
     ratingsCount: ratingSummary.ratingsCount,

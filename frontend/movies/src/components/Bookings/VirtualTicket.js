@@ -96,6 +96,9 @@ const VirtualTicket = ({ booking, title, showDownload = true }) => {
             <Typography><strong>{t("ticketGuest")}:</strong> {getCustomerName(booking, t("fallbackGuest"))}</Typography>
             <Typography><strong>{t("ticketPhone")}:</strong> {booking.phoneNumber || t("ticketNotProvided")}</Typography>
             <Typography><strong>{t("ticketDate")}:</strong> {formatTicketDate(booking.date, locale)}</Typography>
+            {booking.showtime?.hall ? (
+              <Typography><strong>{t("bookingHall")}:</strong> {booking.showtime.hall}</Typography>
+            ) : null}
             <Typography><strong>{t("ticketSeat")}:</strong> {booking.seatNumber || t("ticketNotAssigned")}</Typography>
             <Typography>
               <strong>{t("ticketPayment")}:</strong>{" "}

@@ -3,6 +3,7 @@ import {
   addMovie,
   addMovieReview,
   deleteMovie,
+  deleteMovieReview,
   getAllMovies,
   getMovieById,
   updateMovie,
@@ -12,6 +13,7 @@ const movieRouter = express.Router();
 movieRouter.get("/", getAllMovies);
 movieRouter.get("/:id", getMovieById);
 movieRouter.post("/:id/reviews", addMovieReview);
+movieRouter.delete("/:id/reviews/:reviewId", deleteMovieReview);
 movieRouter.post("/", addMovie);
 movieRouter.put("/:id", updateMovie);
 movieRouter.delete("/:id", deleteMovie);

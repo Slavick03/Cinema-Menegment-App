@@ -10,7 +10,7 @@ import { LanguageProvider } from "./i18n/LanguageContext";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 axios.defaults.baseURL =
-  process.env.REACT_APP_API_URL || "http://localhost:5001";
+  process.env.REACT_APP_API_URL || "http://localhost:5002";
 
 root.render(
   <React.StrictMode>

@@ -1,8 +1,21 @@
 import { Box } from "@mui/system";
 import React, { Fragment, useEffect, useState } from "react";
-import { deleteMovie, getAdminById } from "../api-helpers/api-helpers";
+import {
+  deleteAdminBooking,
+  deleteAdminReview,
+  deleteMovie,
+  getAdminById,
+} from "../api-helpers/api-helpers";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import { Button, Divider, List, ListItem, ListItemText, Typography } from "@mui/material";
+import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
+import {
+  Button,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  Typography,
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n/LanguageContext";
 
@@ -11,7 +24,14 @@ const AdminProfile = () => {
   const [admin, setAdmin] = useState();
   const [errorMessage, setErrorMessage] = useState("");
   const [deletingMovieId, setDeletingMovieId] = useState("");
+  const [deletingBookingId, setDeletingBookingId] = useState("");
+  const [deletingReviewId, setDeletingReviewId] = useState("");
   const { t } = useI18n();
+  const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`;
+  const refreshAdmin = async () => {
+    const res = await getAdminById();
+    setAdmin(res.admin);
+  };
 
   useEffect(() => {
     getAdminById()
@@ -25,20 +45,39 @@ const AdminProfile = () => {
 
     try {
       await deleteMovie(movieId);
-      setAdmin((prevAdmin) => {
-        if (!prevAdmin) {
-          return prevAdmin;
-        }
-
-        return {
-          ...prevAdmin,
-          addedMovies: prevAdmin.addedMovies.filter((movie) => movie._id !== movieId),
-        };
-      });
+      await refreshAdmin();
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
       setDeletingMovieId("");
+    }
+  };
+
+  const handleDeleteBooking = async (bookingId) => {
+    setErrorMessage("");
+    setDeletingBookingId(bookingId);
+
+    try {
+      await deleteAdminBooking(bookingId);
+      await refreshAdmin();
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setDeletingBookingId("");
+    }
+  };
+
+  const handleDeleteReview = async (reviewId) => {
+    setErrorMessage("");
+    setDeletingReviewId(reviewId);
+
+    try {
+      await deleteAdminReview(reviewId);
+      await refreshAdmin();
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setDeletingReviewId("");
     }
   };
 
@@ -74,6 +113,25 @@ const AdminProfile = () => {
             >
               {t("profileEmail")}: {admin.email}
             </Typography>
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={<AnalyticsOutlinedIcon />}
+              onClick={() => navigate("/admin-analytics")}
+              sx={{
+                mt: 2,
+                borderRadius: 999,
+                bgcolor: "#6dd3ff",
+                color: "#08111b",
+                fontWeight: 800,
+                py: 1.2,
+                ":hover": {
+                  bgcolor: "#8bddff",
+                },
+              }}
+            >
+              {t("adminOpenAnalytics")}
+            </Button>
           </Box>
         )}
         {admin && (
@@ -127,7 +185,7 @@ const AdminProfile = () => {
                       <ListItemText
                         sx={{ margin: 1, width: "auto", textAlign: "left" }}
                         primary={`${t("adminMovieLabel")}: ${movie.title}`}
-                        secondary={`${t("addMovieTicketPrice")}: $${Number(movie.ticketPrice || 0).toFixed(2)}`}
+                        secondary={`${t("addMovieTicketPrice")}: ${formatCurrency(movie.ticketPrice)}`}
                         secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.52)" } }}
                       />
                       <Box
@@ -180,6 +238,128 @@ const AdminProfile = () => {
                 </Typography>
               )}
             </Box>
+
+            <Typography
+              variant="h4"
+              sx={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                textAlign: "center",
+                pt: 4,
+                pb: 2,
+                fontSize: { xs: "1.55rem", md: "2rem" },
+              }}
+            >
+              {t("adminManageBookings")}
+            </Typography>
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
+            {admin.managedBookings?.length > 0 ? (
+              <List>
+                {admin.managedBookings.map((booking) => (
+                  <ListItem
+                    key={booking._id}
+                    sx={{
+                      bgcolor: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "white",
+                      marginY: 1,
+                      borderRadius: 4,
+                      gap: 2,
+                      flexDirection: { xs: "column", sm: "row" },
+                      alignItems: { xs: "stretch", sm: "center" },
+                    }}
+                  >
+                    <ListItemText
+                      sx={{ margin: 1, width: "auto", textAlign: "left" }}
+                      primary={`${booking.movieTitle} • ${t("adminBookingSeat")}: ${booking.seatNumber}`}
+                      secondary={`${t("adminBookingCustomer")}: ${booking.customerFirstName} ${booking.customerLastName} • ${t("adminBookingShowtime")}: ${new Date(booking.date).toLocaleString()} • ${t("adminMovieRevenue")}: ${formatCurrency(booking.totalPrice)}`}
+                      secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.52)" } }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={() => handleDeleteBooking(booking._id)}
+                      disabled={deletingBookingId === booking._id}
+                      sx={{
+                        borderRadius: 999,
+                        bgcolor: "#ff6b6b",
+                        color: "#08111b",
+                        fontWeight: 800,
+                        px: 3,
+                        ":hover": {
+                          bgcolor: "#ff8585",
+                        },
+                      }}
+                    >
+                      {deletingBookingId === booking._id ? t("commonDeleting") : t("adminCancelBooking")}
+                    </Button>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography sx={{ color: "rgba(255,255,255,0.62)", textAlign: "center" }}>
+                {t("adminNoManagedBookings")}
+              </Typography>
+            )}
+
+            <Typography
+              variant="h4"
+              sx={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                textAlign: "center",
+                pt: 4,
+                pb: 2,
+                fontSize: { xs: "1.55rem", md: "2rem" },
+              }}
+            >
+              {t("adminManageReviews")}
+            </Typography>
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
+            {admin.managedReviews?.length > 0 ? (
+              <List>
+                {admin.managedReviews.map((review) => (
+                  <ListItem
+                    key={review._id}
+                    sx={{
+                      bgcolor: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "white",
+                      marginY: 1,
+                      borderRadius: 4,
+                      gap: 2,
+                      flexDirection: { xs: "column", sm: "row" },
+                      alignItems: { xs: "stretch", sm: "center" },
+                    }}
+                  >
+                    <ListItemText
+                      sx={{ margin: 1, width: "auto", textAlign: "left" }}
+                      primary={`${review.movieTitle} • ${t("adminReviewRating")}: ${review.rating}/5`}
+                      secondary={`${t("adminReviewAuthor")}: ${review.userName} • ${review.text}`}
+                      secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.52)" } }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={() => handleDeleteReview(review._id)}
+                      disabled={deletingReviewId === review._id}
+                      sx={{
+                        borderRadius: 999,
+                        bgcolor: "#ff6b6b",
+                        color: "#08111b",
+                        fontWeight: 800,
+                        px: 3,
+                        ":hover": {
+                          bgcolor: "#ff8585",
+                        },
+                      }}
+                    >
+                      {deletingReviewId === review._id ? t("commonDeleting") : t("adminDeleteReview")}
+                    </Button>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography sx={{ color: "rgba(255,255,255,0.62)", textAlign: "center" }}>
+                {t("adminNoManagedReviews")}
+              </Typography>
+            )}
           </Box>
         )}
       </Fragment>

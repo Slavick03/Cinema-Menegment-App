@@ -31,7 +31,7 @@ export const getPaymentMethodLabel = (paymentMethod, t) => {
   const labels = {
     apple_pay: t ? t("paymentApplePay") : "Apple Pay",
     google_pay: t ? t("paymentGooglePay") : "Google Pay",
-    card: t ? t("paymentCard") : "Card Payment",
+    card: t ? t("paymentCard") : "Bank Card",
   };
 
   return labels[paymentMethod] || paymentMethod || (t ? t("ticketNotSpecified") : "Not specified");
@@ -101,6 +101,7 @@ export const getTicketQrValue = (
     bookingId: booking._id || fallbacks.bookingId,
     movieTitle: booking.movie?.title || fallbacks.movieTitle,
     date: booking.date || "",
+    hall: booking.showtime?.hall || "",
     seatNumber: booking.seatNumber || "",
     customerName: getCustomerName(booking, fallbacks.customerName),
   });

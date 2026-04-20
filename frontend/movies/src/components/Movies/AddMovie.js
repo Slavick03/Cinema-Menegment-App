@@ -29,7 +29,18 @@ const createInitialInputs = () => ({
   featured: false,
 });
 
+const createEmptyShowtime = () => ({
+  startTime: "",
+  hall: "",
+  price: "",
+  totalSeats: "48",
+});
+
 const normalizeTicketPriceInput = (value) => `${value || ""}`.trim().replace(",", ".");
+const updateShowtimeField = (showtimes, index, field, value) =>
+  showtimes.map((item, itemIndex) =>
+    itemIndex === index ? { ...item, [field]: value } : item
+  );
 
 const AddMovie = () => {
   const navigate = useNavigate();
@@ -39,6 +50,7 @@ const AddMovie = () => {
   const [inputs, setInputs] = useState(createInitialInputs);
   const [actors, setActors] = useState([]);
   const [actor, setActor] = useState("");
+  const [showtimes, setShowtimes] = useState([createEmptyShowtime()]);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoadingMovie, setIsLoadingMovie] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,6 +61,7 @@ const AddMovie = () => {
       setInputs(createInitialInputs());
       setActors([]);
       setActor("");
+      setShowtimes([createEmptyShowtime()]);
       setErrorMessage("");
       setIsLoadingMovie(false);
       return;
@@ -75,6 +88,24 @@ const AddMovie = () => {
           featured: Boolean(movie.featured),
         });
         setActors(Array.isArray(movie.actors) ? movie.actors.filter(Boolean) : []);
+        setShowtimes(
+          Array.isArray(movie.showtimes) && movie.showtimes.length
+            ? movie.showtimes.map((showtime) => ({
+                startTime: showtime.startTime
+                  ? new Date(showtime.startTime).toISOString().slice(0, 16)
+                  : "",
+                hall: showtime.hall || "",
+                price:
+                  showtime.price === undefined || showtime.price === null
+                    ? ""
+                    : `${showtime.price}`,
+                totalSeats:
+                  showtime.totalSeats === undefined || showtime.totalSeats === null
+                    ? "48"
+                    : `${showtime.totalSeats}`,
+              }))
+            : [createEmptyShowtime()]
+        );
       })
       .catch((err) => setErrorMessage(err.message))
       .finally(() => setIsLoadingMovie(false));
@@ -92,6 +123,19 @@ const AddMovie = () => {
     e.preventDefault();
 
     const trimmedActors = actors.map((item) => item.trim()).filter(Boolean);
+    const normalizedShowtimes = showtimes
+      .map((showtime) => ({
+        startTime: `${showtime.startTime || ""}`.trim(),
+        hall: `${showtime.hall || ""}`.trim(),
+        price: normalizeTicketPriceInput(
+          showtime.price === "" ? inputs.ticketPrice : showtime.price
+        ),
+        totalSeats: `${showtime.totalSeats || ""}`.trim(),
+      }))
+      .filter(
+        (showtime) =>
+          showtime.startTime || showtime.hall || showtime.price || showtime.totalSeats
+      );
 
     if (!trimmedActors.length) {
       setErrorMessage(t("addMovieErrorActorRequired"));
@@ -105,6 +149,26 @@ const AddMovie = () => {
       return;
     }
 
+    if (!normalizedShowtimes.length) {
+      setErrorMessage(t("addMovieErrorShowtimeRequired"));
+      return;
+    }
+
+    const hasInvalidShowtime = normalizedShowtimes.some(
+      (showtime) =>
+        !showtime.startTime ||
+        !showtime.hall ||
+        !Number(showtime.price) ||
+        Number(showtime.price) <= 0 ||
+        !Number.isInteger(Number(showtime.totalSeats)) ||
+        Number(showtime.totalSeats) <= 0
+    );
+
+    if (hasInvalidShowtime) {
+      setErrorMessage(t("addMovieErrorShowtimeInvalid"));
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -114,12 +178,14 @@ const AddMovie = () => {
           ...inputs,
           actors: trimmedActors,
           ticketPrice: normalizedTicketPrice,
+          showtimes: normalizedShowtimes,
         });
       } else {
         await addMovie({
           ...inputs,
           actors: trimmedActors,
           ticketPrice: normalizedTicketPrice,
+          showtimes: normalizedShowtimes,
         });
       }
 
@@ -271,6 +337,159 @@ const AddMovie = () => {
               <Typography mt={1.5} sx={{ color: "rgba(255,255,255,0.56)" }}>
                 {t("addMovieActors")}: {actors.length ? actors.join(", ") : t("addMovieNoActors")}
               </Typography>
+              <Box
+                mt={3}
+                p={2.5}
+                border="1px solid rgba(255,255,255,0.08)"
+                borderRadius={4}
+                bgcolor="rgba(255,255,255,0.03)"
+              >
+                <Typography
+                  sx={{
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontSize: "1.1rem",
+                    mb: 1.5,
+                  }}
+                >
+                  {t("addMovieShowtimes")}
+                </Typography>
+                {showtimes.map((showtime, index) => (
+                  <Box
+                    key={`${index}-${showtime.startTime}-${showtime.hall}`}
+                    mt={index ? 2 : 0}
+                    p={2}
+                    border="1px solid rgba(255,255,255,0.08)"
+                    borderRadius={4}
+                    bgcolor="rgba(8,17,27,0.35)"
+                  >
+                    <Typography sx={{ color: "#6dd3ff", mb: 1 }}>
+                      {t("addMovieShowtimeLabel", { index: index + 1 })}
+                    </Typography>
+                    <Box
+                      display="grid"
+                      gridTemplateColumns={{ xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }}
+                      gap={2}
+                      alignItems="end"
+                    >
+                      <Box>
+                        <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
+                          {t("bookingShowtime")}
+                        </FormLabel>
+                        <TextField
+                          type="datetime-local"
+                          value={showtime.startTime}
+                          onChange={(e) =>
+                            setShowtimes((prevState) =>
+                              updateShowtimeField(prevState, index, "startTime", e.target.value)
+                            )
+                          }
+                          variant="outlined"
+                          margin="normal"
+                          fullWidth
+                          sx={fieldStyles}
+                        />
+                      </Box>
+                      <Box>
+                        <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
+                          {t("bookingHall")}
+                        </FormLabel>
+                        <TextField
+                          value={showtime.hall}
+                          onChange={(e) =>
+                            setShowtimes((prevState) =>
+                              updateShowtimeField(prevState, index, "hall", e.target.value)
+                            )
+                          }
+                          variant="outlined"
+                          margin="normal"
+                          fullWidth
+                          sx={fieldStyles}
+                        />
+                      </Box>
+                      <Box>
+                        <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
+                          {t("addMovieShowtimePrice")}
+                        </FormLabel>
+                        <TextField
+                          type="number"
+                          inputProps={{ min: 0.01, step: "0.01" }}
+                          value={showtime.price}
+                          onChange={(e) =>
+                            setShowtimes((prevState) =>
+                              updateShowtimeField(prevState, index, "price", e.target.value)
+                            )
+                          }
+                          variant="outlined"
+                          margin="normal"
+                          fullWidth
+                          sx={fieldStyles}
+                        />
+                      </Box>
+                      <Box>
+                        <FormLabel sx={{ ...labelProps, color: "rgba(255,255,255,0.76)" }}>
+                          {t("bookingSeatCapacity")}
+                        </FormLabel>
+                        <TextField
+                          type="number"
+                          inputProps={{ min: 1, step: "1" }}
+                          value={showtime.totalSeats}
+                          onChange={(e) =>
+                            setShowtimes((prevState) =>
+                              updateShowtimeField(prevState, index, "totalSeats", e.target.value)
+                            )
+                          }
+                          variant="outlined"
+                          margin="normal"
+                          fullWidth
+                          sx={fieldStyles}
+                        />
+                      </Box>
+                    </Box>
+                    <Box display="flex" justifyContent="flex-end" mt={2}>
+                      <Button
+                        type="button"
+                        variant="outlined"
+                        onClick={() =>
+                          setShowtimes((prevState) =>
+                            prevState.length === 1
+                              ? [createEmptyShowtime()]
+                              : prevState.filter((_, itemIndex) => itemIndex !== index)
+                          )
+                        }
+                        sx={{
+                          borderRadius: 999,
+                          borderColor: "rgba(255,154,162,0.28)",
+                          color: "#ff9aa2",
+                          px: 2.5,
+                          "&:hover": {
+                            borderColor: "#ff9aa2",
+                            bgcolor: "rgba(255,154,162,0.08)",
+                          },
+                        }}
+                      >
+                        {t("commonDelete")}
+                      </Button>
+                    </Box>
+                  </Box>
+                ))}
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={() =>
+                    setShowtimes((prevState) => [...prevState, createEmptyShowtime()])
+                  }
+                  sx={{
+                    mt: 2,
+                    borderRadius: 999,
+                    borderColor: "rgba(255,255,255,0.18)",
+                    color: "#6dd3ff",
+                    px: 3,
+                    py: 1.2,
+                  }}
+                >
+                  {t("addMovieAddShowtime")}
+                </Button>
+              </Box>
               {errorMessage && (
                 <Typography mt={1.5} sx={{ color: "#ff9aa2" }}>
                   {errorMessage}

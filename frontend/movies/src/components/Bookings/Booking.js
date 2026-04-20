@@ -8,28 +8,48 @@ import {
   Typography,
 } from "@mui/material";
 import React, { Fragment, useEffect, useState } from "react";
+import { Elements, CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   addMovieReview,
+  completePaymentBooking,
+  createPaymentIntent,
+  deleteMovieReview,
   getBookedSeats,
   getMovieDetails,
-  newBooking,
+  getStripeConfig,
 } from "../../api-helpers/api-helpers";
 import SeatSelectionModal from "./SeatSelectionModal";
 import VirtualTicket from "./VirtualTicket";
 import {
   formatCalendarDate,
   formatTicketPrice,
+  formatTicketDate,
   getPaymentMethodLabel,
 } from "../../utils/ticket-utils";
 import { useI18n } from "../../i18n/LanguageContext";
+
+const getShowtimeLabel = (showtime, locale) => {
+  if (!showtime) {
+    return "";
+  }
+
+  const dateLabel = formatTicketDate(showtime.startTime, locale);
+  const hallLabel = showtime.hall ? ` • ${showtime.hall}` : "";
+  const priceLabel = Number.isFinite(Number(showtime.price))
+    ? ` • ${formatTicketPrice(showtime.price)}`
+    : "";
+
+  return `${dateLabel}${hallLabel}${priceLabel}`;
+};
 
 const Booking = () => {
   const navigate = useNavigate();
   const [movie, setMovie] = useState();
   const [comments, setComments] = useState([]);
   const [inputs, setInputs] = useState({
-    date: "",
+    showtime: "",
     customerFirstName: "",
     customerLastName: "",
     phoneNumber: "",
@@ -41,17 +61,16 @@ const Booking = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [createdBooking, setCreatedBooking] = useState(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [stripePromise, setStripePromise] = useState(null);
+  const [isStripeLoading, setIsStripeLoading] = useState(true);
   const [reviewInputs, setReviewInputs] = useState({ rating: "5", comment: "" });
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewError, setReviewError] = useState("");
+  const [deletingReviewId, setDeletingReviewId] = useState("");
   const id = useParams().id;
   const { locale, t } = useI18n();
-
-  const paymentOptions = [
-    { value: "apple_pay", label: t("paymentApplePay") },
-    { value: "google_pay", label: t("paymentGooglePay") },
-    { value: "card", label: t("paymentCard") },
-  ];
+  const currentUserId = localStorage.getItem("userId");
 
   useEffect(() => {
     getMovieDetails(id)
@@ -63,12 +82,30 @@ const Booking = () => {
   }, [id]);
 
   useEffect(() => {
-    if (!id || !inputs.date) {
+    setIsStripeLoading(true);
+    getStripeConfig()
+      .then((res) => {
+        setStripePromise(loadStripe(res.publishableKey));
+      })
+      .catch((err) => {
+        setErrorMessage(err.message);
+      })
+      .finally(() => {
+        setIsStripeLoading(false);
+      });
+  }, []);
+
+  const selectedShowtime = movie?.showtimes?.find(
+    (showtime) => showtime._id === inputs.showtime
+  );
+
+  useEffect(() => {
+    if (!selectedShowtime?._id) {
       setBookedSeats([]);
       return;
     }
 
-    getBookedSeats(id, inputs.date)
+    getBookedSeats(selectedShowtime._id)
       .then((res) => {
         const takenSeats = res.bookedSeats || [];
         setBookedSeats(takenSeats);
@@ -77,13 +114,19 @@ const Booking = () => {
         );
       })
       .catch((err) => setErrorMessage(err.message));
-  }, [id, inputs.date]);
+  }, [selectedShowtime?._id]);
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+
     setInputs((prevState) => ({
       ...prevState,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
+    if (name === "showtime") {
+      setSelectedSeat("");
+      setBookedSeats([]);
+    }
     setErrorMessage("");
     setSuccessMessage("");
   };
@@ -101,38 +144,6 @@ const Booking = () => {
     }));
     setReviewMessage("");
     setReviewError("");
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (!selectedSeat) {
-      setErrorMessage(t("bookingErrorSeatRequired"));
-      return;
-    }
-
-    if (
-      !inputs.customerFirstName.trim() ||
-      !inputs.customerLastName.trim() ||
-      !inputs.phoneNumber.trim()
-    ) {
-      setErrorMessage(t("bookingErrorContactRequired"));
-      return;
-    }
-
-    newBooking({ ...inputs, movie: movie._id, seatNumber: selectedSeat })
-      .then((res) => {
-        setCreatedBooking(res.booking);
-        setBookedSeats((prevSeats) =>
-          prevSeats.includes(selectedSeat) ? prevSeats : [...prevSeats, selectedSeat]
-        );
-        setSuccessMessage(t("bookingSuccess"));
-        setSelectedSeat("");
-      })
-      .catch((err) => {
-        setSuccessMessage("");
-        setErrorMessage(err.message);
-      });
   };
 
   const handleReviewSubmit = (e) => {
@@ -162,6 +173,77 @@ const Booking = () => {
         setReviewMessage("");
         setReviewError(err.message);
       });
+  };
+
+  const handleReviewDelete = (reviewId) => {
+    setDeletingReviewId(reviewId);
+    setReviewMessage("");
+    setReviewError("");
+
+    deleteMovieReview(id, reviewId)
+      .then((res) => {
+        setComments(res.comments || []);
+        setMovie((prevMovie) => ({
+          ...prevMovie,
+          averageRating: res.averageRating,
+          ratingsCount: res.ratingsCount,
+        }));
+        setReviewMessage(res.message);
+      })
+      .catch((err) => {
+        setReviewError(err.message);
+      })
+      .finally(() => {
+        setDeletingReviewId("");
+      });
+  };
+
+  const validateBookingInputs = () => {
+    if (!inputs.showtime) {
+      setErrorMessage(t("bookingErrorShowtimeRequired"));
+      return false;
+    }
+
+    if (!selectedSeat) {
+      setErrorMessage(t("bookingErrorSeatRequired"));
+      return false;
+    }
+
+    if (
+      !inputs.customerFirstName.trim() ||
+      !inputs.customerLastName.trim() ||
+      !inputs.phoneNumber.trim()
+    ) {
+      setErrorMessage(t("bookingErrorContactRequired"));
+      return false;
+    }
+
+    return true;
+  };
+
+  const bookingPayload = selectedShowtime
+    ? {
+        ...inputs,
+        showtime: selectedShowtime._id,
+        date: selectedShowtime.startTime,
+        seatNumber: selectedSeat,
+      }
+    : null;
+  const isPaymentDetailsReady =
+    Boolean(inputs.showtime) &&
+    Boolean(selectedSeat) &&
+    Boolean(inputs.customerFirstName.trim()) &&
+    Boolean(inputs.customerLastName.trim()) &&
+    Boolean(inputs.phoneNumber.trim());
+
+  const handleBookingCreated = (booking) => {
+    setCreatedBooking(booking);
+    setBookedSeats((prevSeats) =>
+      prevSeats.includes(booking.seatNumber) ? prevSeats : [...prevSeats, booking.seatNumber]
+    );
+    setSelectedSeat("");
+    setSuccessMessage(t("bookingSuccess"));
+    setErrorMessage("");
   };
 
   const reviews = [...comments].sort(
@@ -250,7 +332,7 @@ const Booking = () => {
                 boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
               }}
             >
-              <form onSubmit={handleSubmit}>
+              <Box>
                 <Box
                   padding={{ xs: 1, md: 2 }}
                   margin="auto"
@@ -267,17 +349,45 @@ const Booking = () => {
                     {t("bookingAndPayment")}
                   </Typography>
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
-                    {t("bookingDate")}
+                    {t("bookingShowtime")}
                   </FormLabel>
                   <TextField
-                    name="date"
-                    type="date"
+                    select
+                    name="showtime"
                     margin="normal"
                     variant="outlined"
-                    value={inputs.date}
+                    value={inputs.showtime}
                     onChange={handleChange}
                     sx={fieldStyles}
-                  />
+                  >
+                    {(movie.showtimes || []).length ? (
+                      (movie.showtimes || []).map((showtime) => (
+                        <MenuItem key={showtime._id} value={showtime._id}>
+                          {getShowtimeLabel(showtime, locale)}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem value="" disabled>
+                        {t("bookingNoShowtimes")}
+                      </MenuItem>
+                    )}
+                  </TextField>
+                  {selectedShowtime ? (
+                    <Box
+                      sx={{
+                        mt: 1,
+                        p: 2,
+                        borderRadius: 4,
+                        border: "1px solid rgba(109,211,255,0.12)",
+                        background: "rgba(109,211,255,0.05)",
+                      }}
+                    >
+                      <Typography>{t("bookingDate")}: {formatTicketDate(selectedShowtime.startTime, locale)}</Typography>
+                      <Typography sx={{ mt: 0.7 }}>{t("bookingHall")}: {selectedShowtime.hall}</Typography>
+                      <Typography sx={{ mt: 0.7 }}>{t("bookingTicketPrice")}: {formatTicketPrice(selectedShowtime.price)}</Typography>
+                      <Typography sx={{ mt: 0.7 }}>{t("bookingSeatCapacity")}: {selectedShowtime.totalSeats}</Typography>
+                    </Box>
+                  ) : null}
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 1 }}>
                     {t("bookingFirstName")}
                   </FormLabel>
@@ -340,7 +450,7 @@ const Booking = () => {
                     <Button
                       type="button"
                       variant="outlined"
-                      disabled={!inputs.date}
+                      disabled={!inputs.showtime}
                       onClick={() => setIsSeatModalOpen(true)}
                       sx={{
                         mt: 2.5,
@@ -348,7 +458,7 @@ const Booking = () => {
                         py: 1.2,
                         borderRadius: 999,
                         borderColor: "rgba(255,255,255,0.18)",
-                        color: inputs.date ? "#6dd3ff" : "rgba(255,255,255,0.36)",
+                        color: inputs.showtime ? "#6dd3ff" : "rgba(255,255,255,0.36)",
                         "&:hover": {
                           borderColor: "#6dd3ff",
                           bgcolor: "rgba(109,211,255,0.08)",
@@ -362,21 +472,76 @@ const Booking = () => {
                   <FormLabel sx={{ color: "rgba(255,255,255,0.76)", mt: 2.5 }}>
                     {t("bookingPaymentMethod")}
                   </FormLabel>
-                  <TextField
-                    select
-                    name="paymentMethod"
-                    margin="normal"
-                    variant="outlined"
-                    value={inputs.paymentMethod}
-                    onChange={handleChange}
-                    sx={fieldStyles}
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      p: 2.2,
+                      borderRadius: 4,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      bgcolor: "rgba(255,255,255,0.03)",
+                    }}
                   >
-                    {paymentOptions.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                    <Typography sx={{ fontWeight: 700 }}>
+                      {t("bookingCardDetails")}
+                    </Typography>
+                    <Typography sx={{ mt: 0.8, color: "rgba(255,255,255,0.62)", lineHeight: 1.7 }}>
+                      {t("bookingCardDetailsHint")}
+                    </Typography>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2.5,
+                      borderRadius: 5,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    <Typography sx={{ color: "rgba(255,255,255,0.58)", fontSize: "0.86rem", mb: 1.4 }}>
+                      {t("bookingCardFormLabel")}
+                    </Typography>
+                    {!isPaymentDetailsReady ? (
+                      <Box
+                        sx={{
+                          p: 2,
+                          borderRadius: 4,
+                          border: "1px dashed rgba(255,255,255,0.14)",
+                          bgcolor: "rgba(8,17,27,0.35)",
+                        }}
+                      >
+                        <Typography sx={{ color: "rgba(255,255,255,0.72)", lineHeight: 1.7 }}>
+                          {t("bookingPaymentPrerequisites")}
+                        </Typography>
+                      </Box>
+                    ) : stripePromise ? (
+                      <Elements stripe={stripePromise}>
+                        <StripeCardPaymentForm
+                          bookingPayload={bookingPayload}
+                          disabled={!movie}
+                          isStripeLoading={isStripeLoading}
+                          isProcessingPayment={isProcessingPayment}
+                          onProcessingChange={setIsProcessingPayment}
+                          onValidate={validateBookingInputs}
+                          onSuccess={handleBookingCreated}
+                          onError={(message) => {
+                            setSuccessMessage("");
+                            setErrorMessage(message);
+                          }}
+                          onClearMessages={() => {
+                            setErrorMessage("");
+                            setSuccessMessage("");
+                          }}
+                          onStatusMessage={setSuccessMessage}
+                          t={t}
+                        />
+                      </Elements>
+                    ) : (
+                      <Typography sx={{ color: "#ffb4b8", lineHeight: 1.7 }}>
+                        {isStripeLoading ? t("bookingStripeLoading") : t("bookingStripeUnavailable")}
+                      </Typography>
+                    )}
+                  </Box>
 
                   <Box
                     sx={{
@@ -398,13 +563,21 @@ const Booking = () => {
                       {t("bookingPaymentSummary")}
                     </Typography>
                     <Typography sx={{ mt: 1.2 }}>
-                      {t("bookingTicketPrice")}: {formatTicketPrice(movie.ticketPrice)}
+                      {t("bookingTicketPrice")}: {formatTicketPrice(selectedShowtime?.price ?? movie.ticketPrice)}
                     </Typography>
                     <Typography sx={{ mt: 0.7 }}>
-                      {t("bookingPaymentType")}: {getPaymentMethodLabel(inputs.paymentMethod, t)}
+                      {t("bookingPaymentType")}: {getPaymentMethodLabel("card", t)}
                     </Typography>
+                    {selectedShowtime ? (
+                      <Typography sx={{ mt: 0.7 }}>
+                        {t("bookingHall")}: {selectedShowtime.hall}
+                      </Typography>
+                    ) : null}
                     <Typography sx={{ mt: 0.7 }}>
                       {t("ticketSeat")}: {selectedSeat || t("bookingChooseSeatFirst")}
+                    </Typography>
+                    <Typography sx={{ mt: 0.7, color: "#6dd3ff" }}>
+                      {t("bookingStripeHint")}
                     </Typography>
                   </Box>
 
@@ -441,25 +614,8 @@ const Booking = () => {
                     </Alert>
                   )}
 
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    sx={{
-                      mt: 3,
-                      py: 1.4,
-                      borderRadius: 999,
-                      bgcolor: "#ff7a45",
-                      color: "#08111b",
-                      fontWeight: 800,
-                      "&:hover": {
-                        bgcolor: "#ff925d",
-                      },
-                    }}
-                  >
-                    {t("bookingPayConfirm")}
-                  </Button>
                 </Box>
-              </form>
+              </Box>
             </Box>
           </Box>
 
@@ -652,9 +808,40 @@ const Booking = () => {
                         gap={1}
                       >
                         <Typography fontWeight={700}>{review.userName}</Typography>
-                        <Typography sx={{ color: "#6dd3ff", fontWeight: 700 }}>
-                          {review.rating} / 5
-                        </Typography>
+                        <Box
+                          display="flex"
+                          alignItems={{ xs: "flex-start", sm: "center" }}
+                          flexDirection={{ xs: "column", sm: "row" }}
+                          gap={1}
+                        >
+                          <Typography sx={{ color: "#6dd3ff", fontWeight: 700 }}>
+                            {review.rating} / 5
+                          </Typography>
+                          {review.user === currentUserId && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleReviewDelete(review._id)}
+                              disabled={deletingReviewId === review._id}
+                              sx={{
+                                borderRadius: 999,
+                                borderColor: "rgba(255,107,107,0.3)",
+                                color: "#ff9b9b",
+                                fontWeight: 700,
+                                minWidth: "auto",
+                                px: 1.6,
+                                ":hover": {
+                                  borderColor: "#ff6b6b",
+                                  bgcolor: "rgba(255,107,107,0.08)",
+                                },
+                              }}
+                            >
+                              {deletingReviewId === review._id
+                                ? t("commonDeleting")
+                                : t("bookingDeleteMyReview")}
+                            </Button>
+                          )}
+                        </Box>
                       </Box>
                       <Typography sx={{ mt: 1.2, color: "rgba(255,255,255,0.72)", lineHeight: 1.8 }}>
                         {review.text}
@@ -685,7 +872,9 @@ const Booking = () => {
             selectedSeat={selectedSeat}
             bookedSeats={bookedSeats}
             movieTitle={movie.title}
-            bookingDate={inputs.date}
+            bookingDate={selectedShowtime?.startTime}
+            hall={selectedShowtime?.hall}
+            totalSeats={selectedShowtime?.totalSeats}
           />
         </Fragment>
       )}
@@ -708,6 +897,159 @@ const fieldStyles = {
       borderColor: "#6dd3ff",
     },
   },
+};
+
+const StripeCardPaymentForm = ({
+  bookingPayload,
+  disabled,
+  isStripeLoading,
+  isProcessingPayment,
+  onProcessingChange,
+  onValidate,
+  onSuccess,
+  onError,
+  onClearMessages,
+  onStatusMessage,
+  t,
+}) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [clientSecret, setClientSecret] = useState("");
+  const [paymentIntentId, setPaymentIntentId] = useState("");
+  const [intentSignature, setIntentSignature] = useState("");
+
+  const buildIntentSignature = () =>
+    JSON.stringify({
+      showtime: bookingPayload?.showtime || "",
+      date: bookingPayload?.date || "",
+      seatNumber: bookingPayload?.seatNumber || "",
+      customerFirstName: bookingPayload?.customerFirstName || "",
+      customerLastName: bookingPayload?.customerLastName || "",
+      phoneNumber: bookingPayload?.phoneNumber || "",
+    });
+
+  const handlePay = async () => {
+    if (!stripe || !elements || disabled || isStripeLoading) {
+      return;
+    }
+
+    if (!onValidate()) {
+      return;
+    }
+
+    onClearMessages();
+    onProcessingChange(true);
+
+    try {
+      const nextSignature = buildIntentSignature();
+      let nextClientSecret = clientSecret;
+      let nextPaymentIntentId = paymentIntentId;
+
+      if (!nextClientSecret || intentSignature !== nextSignature) {
+        onStatusMessage(t("bookingPreparingPayment"));
+        const paymentIntentResponse = await createPaymentIntent(bookingPayload);
+        nextClientSecret = paymentIntentResponse.clientSecret;
+        nextPaymentIntentId = paymentIntentResponse.paymentIntentId;
+        setClientSecret(nextClientSecret);
+        setPaymentIntentId(nextPaymentIntentId);
+        setIntentSignature(nextSignature);
+      }
+
+      const cardElement = elements.getElement(CardElement);
+
+      if (!cardElement) {
+        throw new Error(t("bookingCardFormNotReady"));
+      }
+
+      onStatusMessage(t("bookingPaymentProcessing"));
+
+      const { error, paymentIntent } = await stripe.confirmCardPayment(nextClientSecret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: {
+            name: `${bookingPayload.customerFirstName} ${bookingPayload.customerLastName}`.trim(),
+            phone: bookingPayload.phoneNumber,
+          },
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || t("bookingPaymentFailed"));
+      }
+
+      if (!paymentIntent || paymentIntent.status !== "succeeded") {
+        throw new Error(t("bookingPaymentNotCompleted"));
+      }
+
+      onStatusMessage(t("bookingPaymentVerifying"));
+      const bookingResponse = await completePaymentBooking(nextPaymentIntentId || paymentIntent.id);
+      onSuccess(bookingResponse.booking);
+    } catch (error) {
+      onStatusMessage("");
+      onError(error.message || t("bookingPaymentFailed"));
+    } finally {
+      onProcessingChange(false);
+    }
+  };
+
+  return (
+    <Box>
+      <Box
+        sx={{
+          p: 1.8,
+          borderRadius: 4,
+          border: "1px solid rgba(255,255,255,0.12)",
+          bgcolor: "rgba(8,17,27,0.55)",
+        }}
+      >
+        <CardElement
+          options={{
+            disableLink: true,
+            style: {
+              base: {
+                color: "#ffffff",
+                fontSize: "16px",
+                fontFamily: "Space Grotesk, sans-serif",
+                "::placeholder": {
+                  color: "rgba(255,255,255,0.42)",
+                },
+              },
+              invalid: {
+                color: "#ff8d92",
+              },
+            },
+          }}
+        />
+      </Box>
+      <Typography sx={{ mt: 1.1, color: "#6dd3ff", lineHeight: 1.7 }}>
+        {t("bookingStripeHint")}
+      </Typography>
+      <Button
+        type="button"
+        variant="contained"
+        onClick={handlePay}
+        disabled={isProcessingPayment || isStripeLoading || !stripe}
+        sx={{
+          mt: 2.2,
+          width: "100%",
+          py: 1.4,
+          borderRadius: 999,
+          bgcolor: "#ff7a45",
+          color: "#08111b",
+          fontWeight: 800,
+          "&:hover": {
+            bgcolor: "#ff925d",
+          },
+          "&.Mui-disabled": {
+            bgcolor: "rgba(255,255,255,0.08)",
+            color: "rgba(255,255,255,0.38)",
+          },
+        }}
+      >
+        {isProcessingPayment ? t("bookingPaymentProcessing") : t("bookingPayConfirm")}
+      </Button>
+    </Box>
+  );
 };
 
 export default Booking;

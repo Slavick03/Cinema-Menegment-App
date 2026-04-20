@@ -13,6 +13,7 @@ jest.mock("./components/Bookings/Booking", () => () => <div>Booking Page</div>);
 jest.mock("./Profile/UserProfile", () => () => <div>User Profile</div>);
 jest.mock("./components/Movies/AddMovie", () => () => <div>Add Movie</div>);
 jest.mock("./Profile/AdminProfile", () => () => <div>Admin Profile</div>);
+jest.mock("./Profile/AdminAnalytics", () => () => <div>Admin Analytics</div>);
 
 test("renders movies navigation", async () => {
   render(

@@ -33,10 +33,13 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
   };
   return (
     <Dialog
+      fullWidth
+      maxWidth={false}
       PaperProps={{
         sx: {
-          width: "min(100% - 24px, 980px)",
-          borderRadius: 8,
+          width: "min(calc(100vw - 32px), 1100px)",
+          m: { xs: 2, sm: 3 },
+          borderRadius: { xs: 4, md: 8 },
           overflow: "hidden",
           background: "rgba(10, 17, 27, 0.9)",
           backdropFilter: "blur(22px)",
@@ -50,15 +53,16 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "0.95fr 1.05fr" },
+          gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 0.95fr) minmax(0, 1.05fr)" },
         }}
       >
         <Box
           sx={{
             p: { xs: 3, md: 5 },
+            minWidth: 0,
             background:
               "linear-gradient(180deg, rgba(255,122,69,0.12), rgba(109,211,255,0.08))",
-            borderRight: { xs: "none", md: "1px solid rgba(255,255,255,0.08)" },
+            borderRight: { xs: "none", lg: "1px solid rgba(255,255,255,0.08)" },
           }}
         >
           <Typography
@@ -77,8 +81,9 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
             sx={{
               mt: 2,
               fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: { xs: "2rem", md: "3rem" },
-              lineHeight: 1.02,
+              fontSize: { xs: "2.5rem", sm: "3rem", md: "3.5rem", lg: "4.4rem" },
+              lineHeight: 1.04,
+              overflowWrap: "anywhere",
             }}
           >
             {isAdmin ? t("authAdminHeadline") : t("authUserHeadline")}
@@ -89,7 +94,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
               : t("authUserDescription")}
           </Typography>
         </Box>
-        <Box sx={{ position: "relative", p: { xs: 3, md: 5 } }}>
+        <Box sx={{ position: "relative", p: { xs: 3, md: 5 }, minWidth: 0 }}>
           <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
             <IconButton
               LinkComponent={Link}
@@ -105,6 +110,9 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
             sx={{
               fontFamily: "'Space Grotesk', sans-serif",
               fontWeight: 700,
+              fontSize: { xs: "2rem", sm: "2.3rem", md: "2.7rem" },
+              lineHeight: 1.08,
+              overflowWrap: "anywhere",
             }}
           >
             {isSignup ? t("authSignup") : t("authLogin")}
@@ -116,6 +124,7 @@ const AuthForm = ({ onSubmit, isAdmin }) => {
               justifyContent="center"
               flexDirection="column"
               width="100%"
+              maxWidth={{ xs: "100%", lg: 440 }}
               margin="auto"
               alignContent="center"
             >

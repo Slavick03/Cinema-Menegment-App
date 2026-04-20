@@ -11,6 +11,7 @@ import Booking from "./components/Bookings/Booking";
 import UserProfile from "./Profile/UserProfile";
 import AddMovie from "./components/Movies/AddMovie";
 import AdminProfile from "./Profile/AdminProfile";
+import AdminAnalytics from "./Profile/AdminAnalytics";
 import "./App.css";
 
 
@@ -20,9 +21,9 @@ function App() {
   const isUserLoggedIn = useSelector((state) => state.user.isLoggedIn);
 
   useEffect(() => {
-    if (localStorage.getItem("userId")) {
+    if (localStorage.getItem("userId") && localStorage.getItem("token")) {
       dispatch(userActions.login());
-    } else if (localStorage.getItem("adminId")) {
+    } else if (localStorage.getItem("adminId") && localStorage.getItem("token")) {
       dispatch(adminActions.login());
     }
   }, [dispatch]);
@@ -50,6 +51,7 @@ function App() {
               <Route path="/add" element={<AddMovie />} />
               <Route path="/edit/:id" element={<AddMovie />} />
               <Route path="/user-admin" element={<AdminProfile />} />
+              <Route path="/admin-analytics" element={<AdminAnalytics />} />
             </>
           )}
           <Route path="*" element={<Navigate to="/" replace />} />

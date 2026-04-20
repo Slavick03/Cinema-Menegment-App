@@ -11,7 +11,9 @@ const Auth = () => {
 
   const onResReceived = (data) => {
     dispatch(userActions.login());
+    localStorage.removeItem("adminId");
     localStorage.setItem("userId", data.id);
+    localStorage.setItem("token", data.token);
     navigate("/");
   };
 

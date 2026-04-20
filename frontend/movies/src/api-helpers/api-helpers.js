@@ -12,8 +12,25 @@ const request = async (callback, fallbackMessage) => {
   }
 };
 
-export const getAllMovies = async () => {
-  return request(() => axios.get("/movie"), "Unable to fetch movies");
+const getAuthHeaders = () => ({
+  headers: {
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  },
+});
+
+export const getAllMovies = async (params = {}) => {
+  const normalizedParams = Object.entries(params).reduce((accumulator, [key, value]) => {
+    if (value !== undefined && value !== null && `${value}`.trim() !== "") {
+      accumulator[key] = value;
+    }
+
+    return accumulator;
+  }, {});
+
+  return request(
+    () => axios.get("/movie", { params: normalizedParams }),
+    "Unable to fetch movies"
+  );
 };
 
 export const sendUserAuthRequest = async (data, signup) => {
@@ -46,35 +63,86 @@ export const getMovieDetails = async (id) => {
 export const addMovieReview = async (movieId, data) => {
   return request(
     () =>
-      axios.post(`/movie/${movieId}/reviews`, {
-        user: localStorage.getItem("userId"),
-        rating: data.rating,
-        comment: data.comment,
-      }),
+      axios.post(
+        `/movie/${movieId}/reviews`,
+        {
+          user: localStorage.getItem("userId"),
+          rating: data.rating,
+          comment: data.comment,
+        },
+        getAuthHeaders(),
+      ),
     "Unable to save review"
+  );
+};
+
+export const deleteMovieReview = async (movieId, reviewId) => {
+  return request(
+    () => axios.delete(`/movie/${movieId}/reviews/${reviewId}`, getAuthHeaders()),
+    "Unable to delete review",
   );
 };
 
 export const newBooking = async (data) => {
   return request(
     () =>
-      axios.post("/booking", {
-        movie: data.movie,
-        seatNumber: data.seatNumber,
-        date: data.date,
-        customerFirstName: data.customerFirstName,
-        customerLastName: data.customerLastName,
-        phoneNumber: data.phoneNumber,
-        paymentMethod: data.paymentMethod,
-        user: localStorage.getItem("userId"),
-      }),
+      axios.post(
+        "/booking",
+        {
+          showtime: data.showtime,
+          seatNumber: data.seatNumber,
+          customerFirstName: data.customerFirstName,
+          customerLastName: data.customerLastName,
+          phoneNumber: data.phoneNumber,
+          paymentMethod: data.paymentMethod,
+          stripePaymentIntentId: data.stripePaymentIntentId,
+          user: localStorage.getItem("userId"),
+        },
+        getAuthHeaders(),
+      ),
     "Unable to create booking"
   );
 };
 
-export const getBookedSeats = async (movieId, date) => {
+export const getStripeConfig = async () => {
+  return request(() => axios.get("/booking/payment/config"), "Unable to load Stripe settings");
+};
+
+export const createPaymentIntent = async (data) => {
   return request(
-    () => axios.get(`/booking/movie/${movieId}/seats`, { params: { date } }),
+    () =>
+      axios.post(
+        "/booking/payment/intent",
+        {
+          showtime: data.showtime,
+          seatNumber: data.seatNumber,
+          customerFirstName: data.customerFirstName,
+          customerLastName: data.customerLastName,
+          phoneNumber: data.phoneNumber,
+          paymentMethod: data.paymentMethod,
+          user: localStorage.getItem("userId"),
+        },
+        getAuthHeaders(),
+      ),
+    "Unable to initialize Stripe payment"
+  );
+};
+
+export const completePaymentBooking = async (paymentIntentId) => {
+  return request(
+    () =>
+      axios.post(
+        "/booking/payment/complete",
+        { paymentIntentId },
+        getAuthHeaders(),
+      ),
+    "Unable to complete Stripe payment"
+  );
+};
+
+export const getBookedSeats = async (showtimeId) => {
+  return request(
+    () => axios.get(`/booking/showtime/${showtimeId}/seats`),
     "Unable to fetch booked seats"
   );
 };
@@ -83,19 +151,25 @@ export const getUserBooking = async () => {
   const id = localStorage.getItem("userId");
 
   return request(
-    () => axios.get(`/user/bookings/${id}`),
+    () => axios.get(`/user/bookings/${id}`, getAuthHeaders()),
     "Unable to fetch bookings"
   );
 };
 
 export const deleteBooking = async (id) => {
-  return request(() => axios.delete(`/booking/${id}`), "Unable to delete booking");
+  return request(
+    () => axios.delete(`/booking/${id}`, getAuthHeaders()),
+    "Unable to delete booking",
+  );
 };
 
 export const getUserDetails = async () => {
   const id = localStorage.getItem("userId");
 
-  return request(() => axios.get(`/user/${id}`), "Unable to fetch user details");
+  return request(
+    () => axios.get(`/user/${id}`, getAuthHeaders()),
+    "Unable to fetch user details",
+  );
 };
 
 export const addMovie = async (data) => {
@@ -111,13 +185,10 @@ export const addMovie = async (data) => {
         featured: data.featured,
         actors: data.actors,
         ticketPrice: data.ticketPrice,
+        showtimes: data.showtimes,
         admin: localStorage.getItem("adminId"),
         },
-        {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        }
+        getAuthHeaders()
       ),
     "Unable to add movie"
   );
@@ -136,12 +207,9 @@ export const updateMovie = async (id, data) => {
           featured: data.featured,
           actors: data.actors,
           ticketPrice: data.ticketPrice,
+          showtimes: data.showtimes,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
+        getAuthHeaders()
       ),
     "Unable to update movie"
   );
@@ -150,11 +218,7 @@ export const updateMovie = async (id, data) => {
 export const deleteMovie = async (id) => {
   return request(
     () =>
-      axios.delete(`/movie/${id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      }),
+      axios.delete(`/movie/${id}`, getAuthHeaders()),
     "Unable to delete movie"
   );
 };
@@ -163,4 +227,18 @@ export const getAdminById = async () => {
   const adminId = localStorage.getItem("adminId");
 
   return request(() => axios.get(`/admin/${adminId}`), "Unable to fetch admin");
+};
+
+export const deleteAdminBooking = async (id) => {
+  return request(
+    () => axios.delete(`/admin/booking/${id}`, getAuthHeaders()),
+    "Unable to delete booking",
+  );
+};
+
+export const deleteAdminReview = async (id) => {
+  return request(
+    () => axios.delete(`/admin/review/${id}`, getAuthHeaders()),
+    "Unable to delete review",
+  );
 };

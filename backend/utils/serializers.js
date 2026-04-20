@@ -18,6 +18,9 @@ export const serializeMovie = (movie) => ({
   ticketPrice: movie.ticketPrice,
   featured: movie.featured,
   admin: movie.adminId,
+  showtimes: Array.isArray(movie.showtimes)
+    ? movie.showtimes.map(serializeShowtime)
+    : undefined,
 });
 
 export const serializeAdmin = (admin) => ({
@@ -40,9 +43,23 @@ export const serializeComment = (comment) => ({
   updatedAt: toIsoString(comment.updatedAt),
 });
 
+export const serializeShowtime = (showtime) => ({
+  _id: showtime.id,
+  movie: showtime.movie ? serializeMovie(showtime.movie) : showtime.movieId,
+  startTime: toIsoString(showtime.startTime),
+  hall: showtime.hall,
+  price: showtime.price,
+  totalSeats: showtime.totalSeats,
+  createdAt: toIsoString(showtime.createdAt),
+  updatedAt: toIsoString(showtime.updatedAt),
+});
+
 export const serializeBooking = (booking) => ({
   _id: booking.id,
   movie: booking.movie ? serializeMovie(booking.movie) : booking.movieId,
+  showtime: booking.showtime
+    ? serializeShowtime(booking.showtime)
+    : booking.showtimeId,
   date: toIsoString(booking.date),
   seatNumber: booking.seatNumber,
   customerFirstName: booking.customerFirstName,

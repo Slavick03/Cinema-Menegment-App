@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { serializeBooking, serializeUser } from "../utils/serializers.js";
 
@@ -50,7 +51,11 @@ export const signup = async (req, res, next) => {
     return res.status(500).json({ message: "Unable to create user" });
   }
 
-  return res.status(201).json({ user: serializeUser(user), id: user.id });
+  const token = jwt.sign({ id: user.id }, process.env.SECRET_KEY, {
+    expiresIn: "14d",
+  });
+
+  return res.status(201).json({ user: serializeUser(user), token, id: user.id });
 };
 
 export const singup = signup;
@@ -58,6 +63,10 @@ export const singup = signup;
 export const updateUser = async (req, res, next) => {
   const id = req.params.id;
   const { name, email, password } = req.body;
+
+  if (req.userId !== id) {
+    return res.status(403).json({ message: "You are not allowed to update this profile" });
+  }
 
   if (hasEmptyValue(name, email, password)) {
     return res.status(422).json({ message: "Invalid Inputs" });
@@ -91,6 +100,10 @@ export const updateUser = async (req, res, next) => {
 
 export const deleteUser = async (req, res, next) => {
   const id = req.params.id;
+
+  if (req.userId !== id) {
+    return res.status(403).json({ message: "You are not allowed to delete this profile" });
+  }
 
   try {
     await prisma.user.delete({
@@ -133,18 +146,27 @@ export const login = async (req, res, next) => {
     return res.status(400).json({ message: "Incorrect Password" });
   }
 
+  const token = jwt.sign({ id: existingUser.id }, process.env.SECRET_KEY, {
+    expiresIn: "14d",
+  });
+
   return res
     .status(200)
-    .json({ message: "Login Successfull", id: existingUser.id });
+    .json({ message: "Login Successfull", token, id: existingUser.id });
 };
 
 export const getBookingsOfUser = async (req, res, next) => {
   const id = req.params.id;
+
+  if (req.userId !== id) {
+    return res.status(403).json({ message: "You are not allowed to view these bookings" });
+  }
+
   let bookings;
   try {
     bookings = await prisma.booking.findMany({
       where: { userId: id },
-      include: { movie: true, user: true },
+      include: { movie: true, showtime: true, user: true },
       orderBy: { createdAt: "desc" },
     });
   } catch (err) {
@@ -156,6 +178,11 @@ export const getBookingsOfUser = async (req, res, next) => {
 
 export const getUserById = async (req, res, next) => {
   const id = req.params.id;
+
+  if (req.userId !== id) {
+    return res.status(403).json({ message: "You are not allowed to view this profile" });
+  }
+
   let user;
   try {
     user = await prisma.user.findUnique({

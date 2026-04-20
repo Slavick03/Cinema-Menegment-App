@@ -9,6 +9,7 @@ const userSclice = createSlice({
     },
     logout(state) {
       localStorage.removeItem("userId");
+      localStorage.removeItem("token");
       state.isLoggedIn = false;
     },
   },

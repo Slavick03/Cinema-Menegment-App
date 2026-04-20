@@ -13,8 +13,23 @@ import EventSeatRoundedIcon from "@mui/icons-material/EventSeatRounded";
 import { formatCalendarDate } from "../../utils/ticket-utils";
 import { useI18n } from "../../i18n/LanguageContext";
 
-const seatRows = ["A", "B", "C", "D", "E", "F"];
 const seatsPerRow = 8;
+const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+const buildSeatRows = (totalSeats) => {
+  const safeTotalSeats = Math.max(1, Number(totalSeats) || seatsPerRow);
+  const rowCount = Math.ceil(safeTotalSeats / seatsPerRow);
+
+  return Array.from({ length: rowCount }, (_, rowIndex) => {
+    const rowLabel = alphabet[rowIndex] || `R${rowIndex + 1}`;
+    const seatsInRow = Math.min(seatsPerRow, safeTotalSeats - rowIndex * seatsPerRow);
+
+    return {
+      rowLabel,
+      seatsInRow,
+    };
+  });
+};
 
 const SeatSelectionModal = ({
   open,
@@ -24,9 +39,12 @@ const SeatSelectionModal = ({
   bookedSeats,
   movieTitle,
   bookingDate,
+  hall,
+  totalSeats,
 }) => {
   const bookedSeatSet = new Set(bookedSeats);
   const { locale, t } = useI18n();
+  const seatRows = buildSeatRows(totalSeats);
 
   return (
     <Dialog
@@ -86,6 +104,11 @@ const SeatSelectionModal = ({
                 })
               : t("seatMapSelectDateFirst")}
           </Typography>
+          {hall ? (
+            <Typography sx={{ mt: 0.8, color: "#6dd3ff" }}>
+              {t("bookingHall")}: {hall}
+            </Typography>
+          ) : null}
         </Box>
         <IconButton onClick={onClose} sx={{ color: "rgba(255,255,255,0.72)" }}>
           <CloseRoundedIcon />
@@ -118,9 +141,9 @@ const SeatSelectionModal = ({
         </Box>
 
         <Box display="flex" flexDirection="column" gap={1.4}>
-          {seatRows.map((row) => (
+          {seatRows.map(({ rowLabel, seatsInRow }) => (
             <Box
-              key={row}
+              key={rowLabel}
               sx={{
                 display: "grid",
                 gridTemplateColumns: "48px repeat(8, minmax(0, 1fr))",
@@ -135,10 +158,10 @@ const SeatSelectionModal = ({
                   color: "#6dd3ff",
                 }}
               >
-                {row}
+                {rowLabel}
               </Typography>
-              {Array.from({ length: seatsPerRow }, (_, index) => {
-                const seatNumber = `${row}-${index + 1}`;
+              {Array.from({ length: seatsInRow }, (_, index) => {
+                const seatNumber = `${rowLabel}-${index + 1}`;
                 const isBooked = bookedSeatSet.has(seatNumber);
                 const isSelected = selectedSeat === seatNumber;
 

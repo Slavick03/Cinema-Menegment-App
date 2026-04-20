@@ -36,12 +36,31 @@ model Movie {
   admin       Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
   bookings    Booking[]
   comments    Comment[]
+  showtimes   Showtime[]
+}
+
+model Showtime {
+  id         String    @id @default(cuid())
+  movieId    String
+  movie      Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  startTime  DateTime
+  hall       String
+  price      Float
+  totalSeats Int
+  bookings   Booking[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([movieId, startTime])
+  @@unique([movieId, startTime, hall])
 }
 
 model Booking {
   id                String   @id @default(cuid())
   movieId           String
   movie             Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  showtimeId        String?
+  showtime          Showtime? @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
   date              DateTime
   seatNumber        String
   customerFirstName String
@@ -57,7 +76,7 @@ model Booking {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  @@unique([movieId, date, seatNumber])
+  @@unique([showtimeId, seatNumber])
 }
 
 model Comment {
