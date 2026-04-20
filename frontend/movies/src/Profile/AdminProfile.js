@@ -5,6 +5,8 @@ import {
   deleteAdminReview,
   deleteMovie,
   getAdminById,
+  getHomeHeroSettings,
+  updateHomeHeroSettings,
 } from "../api-helpers/api-helpers";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
@@ -14,6 +16,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  TextField,
   Typography,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
@@ -26,7 +29,36 @@ const AdminProfile = () => {
   const [deletingMovieId, setDeletingMovieId] = useState("");
   const [deletingBookingId, setDeletingBookingId] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState("");
+  const [heroForm, setHeroForm] = useState({
+    badgeLabel: "",
+    title: "",
+    description: "",
+    posterUrl: "",
+  });
+  const [isSavingHero, setIsSavingHero] = useState(false);
+  const [heroStatusMessage, setHeroStatusMessage] = useState("");
+  const [heroErrorMessage, setHeroErrorMessage] = useState("");
   const { t } = useI18n();
+  const heroTextFieldSx = {
+    "& .MuiInputBase-input": {
+      color: "white",
+    },
+    "& .MuiInputLabel-root": {
+      color: "rgba(255,255,255,0.7)",
+    },
+    "& .MuiInputLabel-root.Mui-focused": {
+      color: "#6dd3ff",
+    },
+    "& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline": {
+      borderColor: "rgba(255,255,255,0.2)",
+    },
+    "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+      borderColor: "rgba(255,255,255,0.35)",
+    },
+    "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      borderColor: "#6dd3ff",
+    },
+  };
   const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`;
   const refreshAdmin = async () => {
     const res = await getAdminById();
@@ -34,10 +66,51 @@ const AdminProfile = () => {
   };
 
   useEffect(() => {
-    getAdminById()
-      .then((res) => setAdmin(res.admin))
+    Promise.all([getAdminById(), getHomeHeroSettings()])
+      .then(([adminData, heroData]) => {
+        setAdmin(adminData.admin);
+        if (heroData?.settings) {
+          setHeroForm({
+            badgeLabel: heroData.settings.badgeLabel || "",
+            title: heroData.settings.title || "",
+            description: heroData.settings.description || "",
+            posterUrl: heroData.settings.posterUrl || "",
+          });
+        }
+      })
       .catch((err) => console.log(err.message));
   }, []);
+
+  const handleHeroFieldChange = (field) => (event) => {
+    setHeroStatusMessage("");
+    setHeroErrorMessage("");
+    setHeroForm((previousForm) => ({
+      ...previousForm,
+      [field]: event.target.value,
+    }));
+  };
+
+  const handleSaveHeroSettings = async () => {
+    setHeroStatusMessage("");
+    setHeroErrorMessage("");
+    setIsSavingHero(true);
+
+    try {
+      const response = await updateHomeHeroSettings(heroForm);
+      const settings = response?.settings || {};
+      setHeroForm({
+        badgeLabel: settings.badgeLabel || "",
+        title: settings.title || "",
+        description: settings.description || "",
+        posterUrl: settings.posterUrl || "",
+      });
+      setHeroStatusMessage("Hero block updated successfully.");
+    } catch (err) {
+      setHeroErrorMessage(err.message);
+    } finally {
+      setIsSavingHero(false);
+    }
+  };
 
   const handleDeleteMovie = async (movieId) => {
     setErrorMessage("");
@@ -147,6 +220,82 @@ const AdminProfile = () => {
             bgcolor="rgba(11,20,31,0.84)"
             boxShadow="0 24px 60px rgba(0,0,0,0.28)"
           >
+            <Typography
+              variant="h4"
+              sx={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                textAlign: "center",
+                pb: 2,
+                fontSize: { xs: "1.55rem", md: "2rem" },
+              }}
+            >
+              Home Hero Block
+            </Typography>
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
+            {heroStatusMessage && (
+              <Typography sx={{ color: "#9de8b3", mb: 2, textAlign: "center" }}>
+                {heroStatusMessage}
+              </Typography>
+            )}
+            {heroErrorMessage && (
+              <Typography sx={{ color: "#ff9aa2", mb: 2, textAlign: "center" }}>
+                {heroErrorMessage}
+              </Typography>
+            )}
+            <Box display="flex" flexDirection="column" gap={1.5} mb={3}>
+              <TextField
+                label="Badge text"
+                value={heroForm.badgeLabel}
+                onChange={handleHeroFieldChange("badgeLabel")}
+                fullWidth
+                size="small"
+                sx={heroTextFieldSx}
+              />
+              <TextField
+                label="Hero title"
+                value={heroForm.title}
+                onChange={handleHeroFieldChange("title")}
+                fullWidth
+                size="small"
+                sx={heroTextFieldSx}
+              />
+              <TextField
+                label="Hero description"
+                value={heroForm.description}
+                onChange={handleHeroFieldChange("description")}
+                fullWidth
+                multiline
+                minRows={3}
+                sx={heroTextFieldSx}
+              />
+              <TextField
+                label="Poster URL"
+                value={heroForm.posterUrl}
+                onChange={handleHeroFieldChange("posterUrl")}
+                fullWidth
+                size="small"
+                sx={heroTextFieldSx}
+              />
+              <Button
+                variant="contained"
+                onClick={handleSaveHeroSettings}
+                disabled={isSavingHero}
+                sx={{
+                  borderRadius: 999,
+                  bgcolor: "#ff7a45",
+                  color: "#08111b",
+                  fontWeight: 800,
+                  px: 3,
+                  alignSelf: "flex-start",
+                  ":hover": {
+                    bgcolor: "#ff925d",
+                  },
+                }}
+              >
+                {isSavingHero ? t("commonSaving") : "Save hero block"}
+              </Button>
+            </Box>
+
             <Typography
               variant="h3"
               sx={{

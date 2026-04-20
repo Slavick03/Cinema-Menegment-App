@@ -5,12 +5,14 @@ import {
   deleteMovie,
   deleteMovieReview,
   getAllMovies,
+  getHomeHeroSettings,
   getMovieById,
   updateMovie,
 } from "../controller/movie-controller.js";
 
 const movieRouter = express.Router();
 movieRouter.get("/", getAllMovies);
+movieRouter.get("/home-hero", getHomeHeroSettings);
 movieRouter.get("/:id", getMovieById);
 movieRouter.post("/:id/reviews", addMovieReview);
 movieRouter.delete("/:id/reviews/:reviewId", deleteMovieReview);

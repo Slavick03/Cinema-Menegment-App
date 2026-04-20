@@ -10,11 +10,17 @@ import {
   serializeAdmin,
   serializeBooking,
   serializeComment,
+  serializeHomeHeroSettings,
   serializeMovie,
 } from "../utils/serializers.js";
 
 const hasEmptyValue = (...values) =>
   values.some((value) => typeof value !== "string" || value.trim() === "");
+
+const MAX_HOME_HERO_BADGE_LENGTH = 60;
+const MAX_HOME_HERO_TITLE_LENGTH = 220;
+const MAX_HOME_HERO_DESCRIPTION_LENGTH = 600;
+const MAX_HOME_HERO_POSTER_URL_LENGTH = 2000;
 
 const getAdminIdFromToken = (authHeader = "") => {
   const { payload, error } = verifyToken(authHeader);
@@ -251,9 +257,14 @@ export const adminLogin = async (req, res, next) => {
     return res.status(400).json({ message: "Incorrect Password" });
   }
 
-  const token = jwt.sign({ id: existingAdmin.id }, process.env.SECRET_KEY, {
-    expiresIn: "14d",
-  });
+  let token;
+  try {
+    token = jwt.sign({ id: existingAdmin.id }, process.env.SECRET_KEY, {
+      expiresIn: "14d",
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Authentication is not configured correctly" });
+  }
 
   return res
     .status(200)
@@ -273,6 +284,15 @@ export const getAdmins = async (req, res, next) => {
 
 export const getAdminById = async (req, res, next) => {
   const id = req.params.id;
+  const { adminId, error } = getAdminIdFromToken(req.headers.authorization || "");
+
+  if (error) {
+    return res.status(401).json({ message: error });
+  }
+
+  if (adminId !== id) {
+    return res.status(403).json({ message: "You are not allowed to view this admin profile" });
+  }
 
   let admin;
   try {
@@ -330,6 +350,81 @@ export const getAdminById = async (req, res, next) => {
       managedBookings: buildManagedBookings(admin.movies),
       managedReviews: buildManagedReviews(admin.movies),
     },
+  });
+};
+
+export const updateHomeHeroSettings = async (req, res, next) => {
+  const { adminId, error } = getAdminIdFromToken(req.headers.authorization || "");
+
+  if (error) {
+    return res.status(401).json({ message: error });
+  }
+
+  const {
+    badgeLabel,
+    title,
+    description,
+    posterUrl,
+  } = req.body;
+
+  if (hasEmptyValue(title, description, posterUrl)) {
+    return res.status(422).json({ message: "Title, description and poster URL are required" });
+  }
+
+  const normalizedBadgeLabel =
+    typeof badgeLabel === "string" ? badgeLabel.trim() : "";
+  const normalizedTitle = title.trim();
+  const normalizedDescription = description.trim();
+  const normalizedPosterUrl = posterUrl.trim();
+
+  if (
+    normalizedBadgeLabel.length > MAX_HOME_HERO_BADGE_LENGTH ||
+    normalizedTitle.length > MAX_HOME_HERO_TITLE_LENGTH ||
+    normalizedDescription.length > MAX_HOME_HERO_DESCRIPTION_LENGTH ||
+    normalizedPosterUrl.length > MAX_HOME_HERO_POSTER_URL_LENGTH
+  ) {
+    return res.status(422).json({ message: "One or more fields exceed allowed length" });
+  }
+
+  let admin;
+  try {
+    admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+      select: { id: true },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to validate admin" });
+  }
+
+  if (!admin) {
+    return res.status(403).json({ message: "Only administrators can update home hero settings" });
+  }
+
+  let settings;
+  try {
+    settings = await prisma.homeHeroSettings.upsert({
+      where: { key: "main" },
+      create: {
+        key: "main",
+        badgeLabel: normalizedBadgeLabel,
+        title: normalizedTitle,
+        description: normalizedDescription,
+        posterUrl: normalizedPosterUrl,
+      },
+      update: {
+        badgeLabel: normalizedBadgeLabel,
+        title: normalizedTitle,
+        description: normalizedDescription,
+        posterUrl: normalizedPosterUrl,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to update home hero settings" });
+  }
+
+  return res.status(200).json({
+    message: "Home hero settings updated successfully",
+    settings: serializeHomeHeroSettings(settings),
   });
 };
 

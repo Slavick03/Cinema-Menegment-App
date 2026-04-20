@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { verifyToken } from "../middleware/auth.js";
 import {
   serializeComment,
+  serializeHomeHeroSettings,
   serializeMovie,
 } from "../utils/serializers.js";
 
@@ -218,6 +219,13 @@ const getMovieStatusPredicate = (status, now) => {
   return null;
 };
 
+const DEFAULT_HOME_HERO_SETTINGS = {
+  badgeLabel: "",
+  title: "",
+  description: "",
+  posterUrl: "https://i.ytimg.com/vi/bweRG6WueuM/maxresdefault.jpg",
+};
+
 const sortMovies = (movies, sortBy, sortOrder) => {
   if (!sortBy) {
     return movies;
@@ -243,6 +251,30 @@ const sortMovies = (movies, sortBy, sortOrder) => {
   });
 
   return sortedMovies;
+};
+
+export const getHomeHeroSettings = async (req, res, next) => {
+  let settings;
+
+  try {
+    settings = await prisma.homeHeroSettings.findUnique({
+      where: { key: "main" },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to fetch home hero settings" });
+  }
+
+  if (!settings) {
+    return res.status(200).json({
+      settings: DEFAULT_HOME_HERO_SETTINGS,
+      isDefault: true,
+    });
+  }
+
+  return res.status(200).json({
+    settings: serializeHomeHeroSettings(settings),
+    isDefault: false,
+  });
 };
 
 export const addMovie = async (req, res, next) => {

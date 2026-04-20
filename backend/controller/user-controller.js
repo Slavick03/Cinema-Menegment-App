@@ -52,9 +52,14 @@ export const signup = async (req, res, next) => {
     return res.status(500).json({ message: "Unable to create user" });
   }
 
-  const token = jwt.sign({ id: user.id }, process.env.SECRET_KEY, {
-    expiresIn: "14d",
-  });
+  let token;
+  try {
+    token = jwt.sign({ id: user.id }, process.env.SECRET_KEY, {
+      expiresIn: "14d",
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Authentication is not configured correctly" });
+  }
 
   return res.status(201).json({ user: serializeUser(user), token, id: user.id });
 };
@@ -147,9 +152,14 @@ export const login = async (req, res, next) => {
     return res.status(400).json({ message: "Incorrect Password" });
   }
 
-  const token = jwt.sign({ id: existingUser.id }, process.env.SECRET_KEY, {
-    expiresIn: "14d",
-  });
+  let token;
+  try {
+    token = jwt.sign({ id: existingUser.id }, process.env.SECRET_KEY, {
+      expiresIn: "14d",
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Authentication is not configured correctly" });
+  }
 
   return res
     .status(200)

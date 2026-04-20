@@ -10,7 +10,6 @@ export const serializeUser = (user) => ({
   _id: user.id,
   name: user.name,
   email: user.email,
-  password: user.password,
 });
 
 export const serializeMovie = (movie) => ({
@@ -31,8 +30,18 @@ export const serializeMovie = (movie) => ({
 export const serializeAdmin = (admin) => ({
   _id: admin.id,
   email: admin.email,
-  password: admin.password,
   addedMovies: admin.movies?.map((movie) => movie.id) || [],
+});
+
+export const serializeHomeHeroSettings = (settings) => ({
+  _id: settings.id,
+  key: settings.key,
+  badgeLabel: settings.badgeLabel,
+  title: settings.title,
+  description: settings.description,
+  posterUrl: settings.posterUrl,
+  createdAt: toIsoString(settings.createdAt),
+  updatedAt: toIsoString(settings.updatedAt),
 });
 
 export const serializeComment = (comment) => ({

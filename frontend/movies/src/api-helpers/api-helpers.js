@@ -245,7 +245,34 @@ export const deleteMovie = async (id) => {
 export const getAdminById = async () => {
   const adminId = localStorage.getItem("adminId");
 
-  return request(() => axios.get(`/admin/${adminId}`), "Unable to fetch admin");
+  return request(
+    () => axios.get(`/admin/${adminId}`, getAuthHeaders()),
+    "Unable to fetch admin",
+  );
+};
+
+export const getHomeHeroSettings = async () => {
+  return request(
+    () => axios.get("/movie/home-hero"),
+    "Unable to fetch home hero settings",
+  );
+};
+
+export const updateHomeHeroSettings = async (data) => {
+  return request(
+    () =>
+      axios.put(
+        "/admin/home-hero",
+        {
+          badgeLabel: data.badgeLabel,
+          title: data.title,
+          description: data.description,
+          posterUrl: data.posterUrl,
+        },
+        getAuthHeaders(),
+      ),
+    "Unable to update home hero settings",
+  );
 };
 
 export const deleteAdminBooking = async (id) => {

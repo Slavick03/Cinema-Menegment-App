@@ -2,17 +2,31 @@ import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import MovieItem from "./Movies/MovieItem";
 import { Link } from "react-router-dom";
-import { getAllMovies } from "../api-helpers/api-helpers";
+import { getAllMovies, getHomeHeroSettings } from "../api-helpers/api-helpers";
 import { useI18n } from "../i18n/LanguageContext";
+
+const DEFAULT_HERO_POSTER_URL = "https://i.ytimg.com/vi/bweRG6WueuM/maxresdefault.jpg";
 
 const HomePage = () => {
   const [movies, setMovies] = useState([]);
+  const [heroSettings, setHeroSettings] = useState(null);
   const { t } = useI18n();
+
   useEffect(() => {
     getAllMovies()
       .then((data) => setMovies(data.movies || []))
       .catch((err) => console.log(err.message));
+
+    getHomeHeroSettings()
+      .then((data) => setHeroSettings(data.settings || null))
+      .catch((err) => console.log(err.message));
   }, []);
+
+  const heroBadge = heroSettings?.badgeLabel || t("homeNowShowing");
+  const heroTitle = heroSettings?.title || t("homeHeroTitle");
+  const heroDescription = heroSettings?.description || t("homeHeroDescription");
+  const heroPosterUrl = heroSettings?.posterUrl || DEFAULT_HERO_POSTER_URL;
+
   return (
     <Box width="100%" height="100%" margin="auto" marginTop={1}>
       <Box
@@ -41,7 +55,7 @@ const HomePage = () => {
           }}
         >
           <Chip
-            label={t("homeNowShowing")}
+            label={heroBadge}
             sx={{
               width: "fit-content",
               bgcolor: "rgba(255,122,69,0.12)",
@@ -60,7 +74,7 @@ const HomePage = () => {
               maxWidth: "10ch",
             }}
           >
-            {t("homeHeroTitle")}
+            {heroTitle}
           </Typography>
           <Typography
             sx={{
@@ -70,7 +84,7 @@ const HomePage = () => {
               color: "rgba(255,255,255,0.72)",
             }}
           >
-            {t("homeHeroDescription")}
+            {heroDescription}
           </Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <Button
@@ -129,7 +143,7 @@ const HomePage = () => {
             }}
           >
             <img
-              src="https://i.ytimg.com/vi/bweRG6WueuM/maxresdefault.jpg"
+              src={heroPosterUrl}
               alt={t("homeFeaturedImageAlt")}
               width="100%"
               height="100%"

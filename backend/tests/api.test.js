@@ -75,7 +75,7 @@ test("signup registers a new user", async () => {
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.user.name, "Test User");
   assert.equal(res.body.user.email, "test@example.com");
-  assert.notEqual(res.body.user.password, "password123");
+  assert.equal("password" in res.body.user, false);
   assert.equal(res.body.id, "user_123");
   assert.equal(res.body.user._id, "user_123");
   assert.ok(res.body.token);
@@ -440,7 +440,9 @@ test("getAllMovies sorts by rating descending", async () => {
 });
 
 test("getAdminById returns analytics for admin movies", async () => {
+  process.env.SECRET_KEY = "test-secret-key";
   const res = createResponseMock();
+  const token = jwt.sign({ id: "admin_analytics_1" }, process.env.SECRET_KEY);
 
   stubMethod(prisma.booking, "deleteMany", async () => ({ count: 0 }));
   stubMethod(prisma.admin, "findUnique", async () => ({
@@ -651,6 +653,7 @@ test("getAdminById returns analytics for admin movies", async () => {
       params: {
         id: "admin_analytics_1",
       },
+      headers: { authorization: `Bearer ${token}` },
     },
     res,
   );
