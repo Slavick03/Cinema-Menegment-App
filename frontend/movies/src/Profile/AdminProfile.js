@@ -12,6 +12,10 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
 import {
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   List,
   ListItem,
@@ -36,6 +40,7 @@ const AdminProfile = () => {
     posterUrl: "",
   });
   const [isSavingHero, setIsSavingHero] = useState(false);
+  const [isHeroModalOpen, setIsHeroModalOpen] = useState(false);
   const [heroStatusMessage, setHeroStatusMessage] = useState("");
   const [heroErrorMessage, setHeroErrorMessage] = useState("");
   const { t } = useI18n();
@@ -104,12 +109,23 @@ const AdminProfile = () => {
         description: settings.description || "",
         posterUrl: settings.posterUrl || "",
       });
-      setHeroStatusMessage("Hero block updated successfully.");
+      setHeroStatusMessage("Hero poster updated successfully.");
+      setIsHeroModalOpen(false);
     } catch (err) {
       setHeroErrorMessage(err.message);
     } finally {
       setIsSavingHero(false);
     }
+  };
+
+  const handleOpenHeroModal = () => {
+    setHeroStatusMessage("");
+    setHeroErrorMessage("");
+    setIsHeroModalOpen(true);
+  };
+
+  const handleCloseHeroModal = () => {
+    setIsHeroModalOpen(false);
   };
 
   const handleDeleteMovie = async (movieId) => {
@@ -220,17 +236,41 @@ const AdminProfile = () => {
             bgcolor="rgba(11,20,31,0.84)"
             boxShadow="0 24px 60px rgba(0,0,0,0.28)"
           >
-            <Typography
-              variant="h4"
-              sx={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                textAlign: "center",
-                pb: 2,
-                fontSize: { xs: "1.55rem", md: "2rem" },
-              }}
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems={{ xs: "stretch", sm: "center" }}
+              flexDirection={{ xs: "column", sm: "row" }}
+              gap={1.5}
+              mb={2}
             >
-              Home Hero Block
-            </Typography>
+              <Typography
+                variant="h4"
+                sx={{
+                  textAlign: { xs: "center", sm: "left" },
+                  fontSize: { xs: "1.55rem", md: "2rem" },
+                  fontFamily: "inherit",
+                }}
+              >
+                Home Hero Block
+              </Typography>
+              <Button
+                variant="contained"
+                onClick={handleOpenHeroModal}
+                sx={{
+                  borderRadius: 999,
+                  bgcolor: "#ff7a45",
+                  color: "#08111b",
+                  fontWeight: 800,
+                  px: 3,
+                  ":hover": {
+                    bgcolor: "#ff925d",
+                  },
+                }}
+              >
+                Edit hero poster
+              </Button>
+            </Box>
             <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", mb: 2 }} />
             {heroStatusMessage && (
               <Typography sx={{ color: "#9de8b3", mb: 2, textAlign: "center" }}>
@@ -242,67 +282,14 @@ const AdminProfile = () => {
                 {heroErrorMessage}
               </Typography>
             )}
-            <Box display="flex" flexDirection="column" gap={1.5} mb={3}>
-              <TextField
-                label="Badge text"
-                value={heroForm.badgeLabel}
-                onChange={handleHeroFieldChange("badgeLabel")}
-                fullWidth
-                size="small"
-                sx={heroTextFieldSx}
-              />
-              <TextField
-                label="Hero title"
-                value={heroForm.title}
-                onChange={handleHeroFieldChange("title")}
-                fullWidth
-                size="small"
-                sx={heroTextFieldSx}
-              />
-              <TextField
-                label="Hero description"
-                value={heroForm.description}
-                onChange={handleHeroFieldChange("description")}
-                fullWidth
-                multiline
-                minRows={3}
-                sx={heroTextFieldSx}
-              />
-              <TextField
-                label="Poster URL"
-                value={heroForm.posterUrl}
-                onChange={handleHeroFieldChange("posterUrl")}
-                fullWidth
-                size="small"
-                sx={heroTextFieldSx}
-              />
-              <Button
-                variant="contained"
-                onClick={handleSaveHeroSettings}
-                disabled={isSavingHero}
-                sx={{
-                  borderRadius: 999,
-                  bgcolor: "#ff7a45",
-                  color: "#08111b",
-                  fontWeight: 800,
-                  px: 3,
-                  alignSelf: "flex-start",
-                  ":hover": {
-                    bgcolor: "#ff925d",
-                  },
-                }}
-              >
-                {isSavingHero ? t("commonSaving") : "Save hero block"}
-              </Button>
-            </Box>
 
             <Typography
               variant="h3"
               sx={{
-                fontFamily: "'Space Grotesk', sans-serif",
                 textAlign: "center",
                 pb: 2,
                 fontSize: { xs: "2rem", md: "2.6rem" },
+                fontFamily: "inherit",
               }}
             >
               {t("adminAddedMovies")}
@@ -391,11 +378,11 @@ const AdminProfile = () => {
             <Typography
               variant="h4"
               sx={{
-                fontFamily: "'Space Grotesk', sans-serif",
                 textAlign: "center",
                 pt: 4,
                 pb: 2,
                 fontSize: { xs: "1.55rem", md: "2rem" },
+                fontFamily: "inherit",
               }}
             >
               {t("adminManageBookings")}
@@ -452,11 +439,11 @@ const AdminProfile = () => {
             <Typography
               variant="h4"
               sx={{
-                fontFamily: "'Space Grotesk', sans-serif",
                 textAlign: "center",
                 pt: 4,
                 pb: 2,
                 fontSize: { xs: "1.55rem", md: "2rem" },
+                fontFamily: "inherit",
               }}
             >
               {t("adminManageReviews")}
@@ -511,6 +498,68 @@ const AdminProfile = () => {
             )}
           </Box>
         )}
+        <Dialog
+          open={isHeroModalOpen}
+          onClose={handleCloseHeroModal}
+          fullWidth
+          maxWidth="md"
+          PaperProps={{
+            sx: {
+              borderRadius: 4,
+              border: "1px solid rgba(255,255,255,0.12)",
+              bgcolor: "rgba(11,20,31,0.96)",
+              backdropFilter: "blur(12px)",
+              color: "white",
+              fontFamily: "inherit",
+            },
+          }}
+        >
+          <DialogTitle sx={{ textAlign: "center", fontFamily: "inherit", fontWeight: 700 }}>
+            Home Hero Poster
+          </DialogTitle>
+          <DialogContent dividers sx={{ borderColor: "rgba(255,255,255,0.08)" }}>
+            <Box display="flex" flexDirection="column" gap={1.5} mt={0.5}>
+              <TextField
+                label="Poster URL"
+                value={heroForm.posterUrl}
+                onChange={handleHeroFieldChange("posterUrl")}
+                fullWidth
+                size="small"
+                sx={heroTextFieldSx}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button
+              onClick={handleCloseHeroModal}
+              sx={{
+                borderRadius: 999,
+                color: "rgba(255,255,255,0.85)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                px: 2.5,
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSaveHeroSettings}
+              disabled={isSavingHero}
+              sx={{
+                borderRadius: 999,
+                bgcolor: "#ff7a45",
+                color: "#08111b",
+                fontWeight: 800,
+                px: 3,
+                ":hover": {
+                  bgcolor: "#ff925d",
+                },
+              }}
+            >
+              {isSavingHero ? t("commonSaving") : "Save hero block"}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Fragment>
     </Box>
   );

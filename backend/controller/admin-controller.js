@@ -367,20 +367,26 @@ export const updateHomeHeroSettings = async (req, res, next) => {
     posterUrl,
   } = req.body;
 
-  if (hasEmptyValue(title, description, posterUrl)) {
-    return res.status(422).json({ message: "Title, description and poster URL are required" });
+  const normalizedBadgeLabel =
+    typeof badgeLabel === "string" ? badgeLabel.trim() : undefined;
+  const normalizedTitle =
+    typeof title === "string" ? title.trim() : undefined;
+  const normalizedDescription =
+    typeof description === "string" ? description.trim() : undefined;
+  const normalizedPosterUrl =
+    typeof posterUrl === "string" ? posterUrl.trim() : "";
+
+  if (!normalizedPosterUrl) {
+    return res.status(422).json({ message: "Poster URL is required" });
   }
 
-  const normalizedBadgeLabel =
-    typeof badgeLabel === "string" ? badgeLabel.trim() : "";
-  const normalizedTitle = title.trim();
-  const normalizedDescription = description.trim();
-  const normalizedPosterUrl = posterUrl.trim();
-
   if (
-    normalizedBadgeLabel.length > MAX_HOME_HERO_BADGE_LENGTH ||
-    normalizedTitle.length > MAX_HOME_HERO_TITLE_LENGTH ||
-    normalizedDescription.length > MAX_HOME_HERO_DESCRIPTION_LENGTH ||
+    (typeof normalizedBadgeLabel === "string" &&
+      normalizedBadgeLabel.length > MAX_HOME_HERO_BADGE_LENGTH) ||
+    (typeof normalizedTitle === "string" &&
+      normalizedTitle.length > MAX_HOME_HERO_TITLE_LENGTH) ||
+    (typeof normalizedDescription === "string" &&
+      normalizedDescription.length > MAX_HOME_HERO_DESCRIPTION_LENGTH) ||
     normalizedPosterUrl.length > MAX_HOME_HERO_POSTER_URL_LENGTH
   ) {
     return res.status(422).json({ message: "One or more fields exceed allowed length" });
@@ -402,21 +408,27 @@ export const updateHomeHeroSettings = async (req, res, next) => {
 
   let settings;
   try {
+    const updatePayload = {
+      posterUrl: normalizedPosterUrl,
+      ...(typeof normalizedBadgeLabel === "string"
+        ? { badgeLabel: normalizedBadgeLabel }
+        : {}),
+      ...(typeof normalizedTitle === "string" ? { title: normalizedTitle } : {}),
+      ...(typeof normalizedDescription === "string"
+        ? { description: normalizedDescription }
+        : {}),
+    };
+
     settings = await prisma.homeHeroSettings.upsert({
       where: { key: "main" },
       create: {
         key: "main",
-        badgeLabel: normalizedBadgeLabel,
-        title: normalizedTitle,
-        description: normalizedDescription,
+        badgeLabel: normalizedBadgeLabel || "",
+        title: normalizedTitle || "",
+        description: normalizedDescription || "",
         posterUrl: normalizedPosterUrl,
       },
-      update: {
-        badgeLabel: normalizedBadgeLabel,
-        title: normalizedTitle,
-        description: normalizedDescription,
-        posterUrl: normalizedPosterUrl,
-      },
+      update: updatePayload,
     });
   } catch (err) {
     return res.status(500).json({ message: "Unable to update home hero settings" });
