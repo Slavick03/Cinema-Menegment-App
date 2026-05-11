@@ -21,7 +21,7 @@
   height: 360px;
   top: 72px;
   right: -80px;
-  background: rgba(237, 122, 68, 0.34);
+  background: color-mix(in srgb, var(--theme-primary-color) 34%, transparent);
 }
 
 .app-shell::after {
@@ -29,7 +29,7 @@
   height: 420px;
   left: -140px;
   bottom: 40px;
-  background: rgba(35, 104, 142, 0.28);
+  background: color-mix(in srgb, var(--theme-secondary-color) 28%, transparent);
 }
 
 .app-content {

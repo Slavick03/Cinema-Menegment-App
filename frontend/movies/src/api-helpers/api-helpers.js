@@ -18,6 +18,13 @@ const getAuthHeaders = () => ({
   },
 });
 
+const getMultipartAuthHeaders = () => ({
+  headers: {
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+    "Content-Type": "multipart/form-data",
+  },
+});
+
 export const getAllMovies = async (params = {}) => {
   const normalizedParams = Object.entries(params).reduce((accumulator, [key, value]) => {
     if (value !== undefined && value !== null && `${value}`.trim() !== "") {
@@ -73,6 +80,21 @@ export const addMovieReview = async (movieId, data) => {
         getAuthHeaders(),
       ),
     "Unable to save review"
+  );
+};
+
+export const updateMovieReview = async (movieId, reviewId, data) => {
+  return request(
+    () =>
+      axios.put(
+        `/movie/${movieId}/reviews/${reviewId}`,
+        {
+          rating: data.rating,
+          comment: data.comment,
+        },
+        getAuthHeaders(),
+      ),
+    "Unable to update review"
   );
 };
 
@@ -274,6 +296,54 @@ export const updateHomeHeroSettings = async (data) => {
     "Unable to update home hero settings",
   );
 };
+
+export const getThemeSettings = async () => {
+  return request(
+    () => axios.get("/movie/theme"),
+    "Unable to fetch theme settings",
+  );
+};
+
+export const getAdminThemeSettings = async () => {
+  return request(
+    () => axios.get("/admin/theme", getAuthHeaders()),
+    "Unable to fetch theme settings",
+  );
+};
+
+export const updateThemeSettings = async (data) => {
+  return request(
+    () =>
+      axios.put(
+        "/admin/theme",
+        {
+          primaryColor: data.primaryColor,
+          secondaryColor: data.secondaryColor,
+          backgroundColor: data.backgroundColor,
+          fontFamily: data.fontFamily,
+          companyName: data.companyName,
+        },
+        getAuthHeaders(),
+      ),
+    "Unable to update theme settings",
+  );
+};
+
+const uploadThemeAsset = async (endpoint, file, fallbackMessage) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return request(
+    () => axios.post(endpoint, formData, getMultipartAuthHeaders()),
+    fallbackMessage,
+  );
+};
+
+export const uploadThemeLogo = async (file) =>
+  uploadThemeAsset("/admin/theme/upload-logo", file, "Unable to upload theme logo");
+
+export const uploadThemeFavicon = async (file) =>
+  uploadThemeAsset("/admin/theme/upload-favicon", file, "Unable to upload theme favicon");
 
 export const deleteAdminBooking = async (id) => {
   return request(

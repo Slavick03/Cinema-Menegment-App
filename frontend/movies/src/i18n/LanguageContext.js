@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { defaultLanguage, languages, translations } from "./translations";
 
 const LANGUAGE_STORAGE_KEY = "appLanguage";
@@ -14,7 +20,7 @@ const LanguageContext = createContext({
 const interpolate = (template, values = {}) =>
   Object.entries(values).reduce(
     (result, [key, value]) => result.replaceAll(`{${key}}`, `${value}`),
-    template
+    template,
   );
 
 export const LanguageProvider = ({ children }) => {
@@ -29,7 +35,8 @@ export const LanguageProvider = ({ children }) => {
   }, [language]);
 
   const value = useMemo(() => {
-    const locale = languages[language]?.locale || languages[defaultLanguage].locale;
+    const locale =
+      languages[language]?.locale || languages[defaultLanguage].locale;
 
     return {
       language,
@@ -42,12 +49,18 @@ export const LanguageProvider = ({ children }) => {
           translations[defaultLanguage]?.[key] ??
           key;
 
-        return typeof template === "string" ? interpolate(template, values) : key;
+        return typeof template === "string"
+          ? interpolate(template, values)
+          : key;
       },
     };
   }, [language]);
 
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return (
+    <LanguageContext.Provider value={value}>
+      {children}
+    </LanguageContext.Provider>
+  );
 };
 
 export const useI18n = () => useContext(LanguageContext);

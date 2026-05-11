@@ -19,6 +19,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { adminActions, userActions } from "../store";
 import { useI18n } from "../i18n/LanguageContext";
+import { resolveAssetUrl } from "../utils/theme-utils";
 // const dummyArray = ["eMemory", "Brahmastra", "OK", "PK"];
 
 const Header = () => {
@@ -26,6 +27,7 @@ const Header = () => {
   const dispatch = useDispatch();
   const isAdminLoggedIn = useSelector((state) => state.admin.isLoggedIn);
   const isUserLoggedIn = useSelector((state) => state.user.isLoggedIn);
+  const theme = useSelector((state) => state.theme.settings);
   const [movies, setMovies] = useState([]);
   const [value, setValue] = useState(false);
   const { language, setLanguage, availableLanguages, t } = useI18n();
@@ -94,11 +96,21 @@ const Header = () => {
                 display: "grid",
                 placeItems: "center",
                 background:
-                  "linear-gradient(135deg, rgba(255,122,69,0.95), rgba(109,211,255,0.85))",
+                  "linear-gradient(135deg, var(--theme-primary-color), var(--theme-secondary-color))",
                 boxShadow: "0 14px 34px rgba(255, 122, 69, 0.28)",
+                overflow: "hidden",
               }}
             >
-              <MovieCreationIcon sx={{ color: "#08111b" }} />
+              {theme.logoUrl ? (
+                <Box
+                  component="img"
+                  src={resolveAssetUrl(theme.logoUrl)}
+                  alt=""
+                  sx={{ width: "100%", height: "100%", objectFit: "contain", p: 0.6 }}
+                />
+              ) : (
+                <MovieCreationIcon sx={{ color: "#08111b" }} />
+              )}
             </Box>
             <Box>
               <Typography
@@ -109,7 +121,7 @@ const Header = () => {
                   lineHeight: 1.1,
                 }}
               >
-                {t("appName")}
+                {theme.companyName || t("appName")}
               </Typography>
               <Typography
                 sx={{
@@ -144,7 +156,7 @@ const Header = () => {
             }}
           >
             <TranslateRoundedIcon
-              sx={{ color: "#6dd3ff", fontSize: "1.05rem" }}
+              sx={{ color: "var(--theme-secondary-color)", fontSize: "1.05rem" }}
             />
             <ToggleButtonGroup
               exclusive
@@ -178,28 +190,28 @@ const Header = () => {
                   sx={{
                     bgcolor:
                       language === option.code
-                        ? "rgba(109,211,255,0.18)"
+                        ? "color-mix(in srgb, var(--theme-secondary-color) 18%, transparent)"
                         : "transparent",
                     color:
                       language === option.code
                         ? "#dff8ff"
                         : "rgba(255,255,255,0.72)",
                     "&.Mui-selected": {
-                      bgcolor: "rgba(109,211,255,0.18)",
+                      bgcolor: "color-mix(in srgb, var(--theme-secondary-color) 18%, transparent)",
                       color: "#dff8ff",
                     },
                     "&.Mui-selected:hover": {
-                      bgcolor: "rgba(109,211,255,0.22)",
+                      bgcolor: "color-mix(in srgb, var(--theme-secondary-color) 22%, transparent)",
                       color: "#ffffff",
                     },
                     boxShadow:
                       language === option.code
-                        ? "inset 0 0 0 1px rgba(109,211,255,0.18)"
+                        ? "inset 0 0 0 1px color-mix(in srgb, var(--theme-secondary-color) 22%, transparent)"
                         : "none",
                     "&:hover": {
                       bgcolor:
                         language === option.code
-                          ? "rgba(109,211,255,0.22)"
+                          ? "color-mix(in srgb, var(--theme-secondary-color) 22%, transparent)"
                           : "rgba(255,255,255,0.06)",
                     },
                   }}
@@ -236,7 +248,7 @@ const Header = () => {
                       borderColor: "rgba(255,255,255,0.24)",
                     },
                     "&.Mui-focused fieldset": {
-                      borderColor: "#ff7a45",
+                      borderColor: "var(--theme-primary-color)",
                     },
                   },
                 }}
@@ -280,7 +292,7 @@ const Header = () => {
                 height: 3,
                 borderRadius: 999,
                 background:
-                  "linear-gradient(90deg, #ff7a45 0%, #6dd3ff 100%)",
+                  "linear-gradient(90deg, var(--theme-primary-color) 0%, var(--theme-secondary-color) 100%)",
               },
               "& .MuiTab-root": {
                 minHeight: 48,

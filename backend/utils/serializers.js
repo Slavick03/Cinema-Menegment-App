@@ -44,6 +44,19 @@ export const serializeHomeHeroSettings = (settings) => ({
   updatedAt: toIsoString(settings.updatedAt),
 });
 
+export const serializeThemeSettings = (settings) => ({
+  _id: settings.id,
+  key: settings.key,
+  primaryColor: settings.primaryColor,
+  secondaryColor: settings.secondaryColor,
+  backgroundColor: settings.backgroundColor,
+  logoUrl: settings.logoUrl,
+  faviconUrl: settings.faviconUrl,
+  fontFamily: settings.fontFamily,
+  companyName: settings.companyName,
+  updatedAt: toIsoString(settings.updatedAt),
+});
+
 export const serializeComment = (comment) => ({
   _id: comment.id,
   movie: comment.movieId,

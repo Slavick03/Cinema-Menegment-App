@@ -22,6 +22,7 @@ export const createApp = () => {
 
   app.use(cors());
   app.use(express.json());
+  app.use("/uploads", express.static(path.resolve(__dirname, "uploads")));
 
   app.get("/", (req, res) => {
     res.status(200).json({ message: "ShowPulse API is running" });

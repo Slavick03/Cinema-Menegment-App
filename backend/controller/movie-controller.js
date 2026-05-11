@@ -171,6 +171,47 @@ const getMovieRatingsMap = async (movieIds) => {
   return mapRatingStats(ratingStats);
 };
 
+const getMovieReviewSummary = async (movieId) => {
+  const [comments, ratingsMap] = await Promise.all([
+    prisma.comment.findMany({
+      where: { movieId },
+      orderBy: { updatedAt: "desc" },
+    }),
+    getMovieRatingsMap([movieId]),
+  ]);
+  const ratingSummary = ratingsMap[movieId] || {
+    averageRating: 0,
+    ratingsCount: 0,
+  };
+
+  return {
+    comments: comments.map(serializeComment),
+    averageRating: ratingSummary.averageRating,
+    ratingsCount: ratingSummary.ratingsCount,
+  };
+};
+
+const validateReviewPayload = ({ comment, rating }) => {
+  if (hasEmptyValue(comment)) {
+    return { message: "Invalid review input" };
+  }
+
+  const numericRating = Number(rating);
+
+  if (
+    !Number.isInteger(numericRating) ||
+    numericRating < 1 ||
+    numericRating > 5
+  ) {
+    return { message: "Rating must be between 1 and 5" };
+  }
+
+  return {
+    text: comment.trim(),
+    rating: numericRating,
+  };
+};
+
 const parseMovieQueryDate = (value) => {
   if (typeof value !== "string") {
     return null;
@@ -684,27 +725,26 @@ export const addMovieReview = async (req, res, next) => {
     return res.status(400).json({ message: "Invalid movie or user ID" });
   }
 
-  if (hasEmptyValue(userId, comment)) {
-    return res.status(422).json({ message: "Invalid review input" });
-  }
+  const reviewPayload = validateReviewPayload({ comment, rating });
 
-  const numericRating = Number(rating);
-
-  if (
-    !Number.isInteger(numericRating) ||
-    numericRating < 1 ||
-    numericRating > 5
-  ) {
-    return res.status(422).json({ message: "Rating must be between 1 and 5" });
+  if (reviewPayload.message) {
+    return res.status(422).json({ message: reviewPayload.message });
   }
 
   let movie;
   let user;
+  let existingReview;
 
   try {
-    [movie, user] = await Promise.all([
+    [movie, user, existingReview] = await Promise.all([
       prisma.movie.findUnique({ where: { id: movieId } }),
       prisma.user.findUnique({ where: { id: userId } }),
+      prisma.comment.findFirst({
+        where: {
+          movieId,
+          userId,
+        },
+      }),
     ]);
   } catch (err) {
     return res.status(500).json({ message: "Unable to save review" });
@@ -718,48 +758,117 @@ export const addMovieReview = async (req, res, next) => {
     return res.status(404).json({ message: "User not found" });
   }
 
-  const trimmedComment = comment.trim();
-
   try {
-    await prisma.comment.create({
-      data: {
-        movieId: movie.id,
-        movieTitle: movie.title.trim(),
-        userId: user.id,
-        userName: user.name.trim(),
-        userEmail: user.email.trim(),
-        text: trimmedComment,
-        rating: numericRating,
-      },
-    });
+    if (existingReview) {
+      await prisma.comment.update({
+        where: { id: existingReview.id },
+        data: {
+          movieTitle: movie.title.trim(),
+          userName: user.name.trim(),
+          userEmail: user.email.trim(),
+          text: reviewPayload.text,
+          rating: reviewPayload.rating,
+        },
+      });
+    } else {
+      await prisma.comment.create({
+        data: {
+          movieId: movie.id,
+          movieTitle: movie.title.trim(),
+          userId: user.id,
+          userName: user.name.trim(),
+          userEmail: user.email.trim(),
+          text: reviewPayload.text,
+          rating: reviewPayload.rating,
+        },
+      });
+    }
   } catch (err) {
     return res.status(500).json({ message: "Unable to save review" });
   }
 
-  let comments;
-  let ratingsMap;
+  let reviewSummary;
+
   try {
-    [comments, ratingsMap] = await Promise.all([
-      prisma.comment.findMany({
-        where: { movieId: movie.id },
-        orderBy: { updatedAt: "desc" },
-      }),
-      getMovieRatingsMap([movie.id]),
-    ]);
+    reviewSummary = await getMovieReviewSummary(movie.id);
   } catch (err) {
     return res.status(500).json({ message: "Unable to fetch reviews" });
   }
 
-  const ratingSummary = ratingsMap[movie.id] || {
-    averageRating: 0,
-    ratingsCount: 0,
-  };
+  return res.status(200).json({
+    message: existingReview
+      ? "Review updated successfully"
+      : "Review added successfully",
+    ...reviewSummary,
+  });
+};
+
+export const updateMovieReview = async (req, res, next) => {
+  const { id: movieId, reviewId } = req.params;
+  const { payload, error } = verifyToken(req.headers.authorization || "");
+
+  if (error) {
+    return res.status(401).json({ message: error });
+  }
+
+  const userId = payload.id;
+
+  if (!isValidObjectId(movieId) || !isValidObjectId(reviewId) || !isValidObjectId(userId)) {
+    return res.status(400).json({ message: "Invalid movie, review or user ID" });
+  }
+
+  const reviewPayload = validateReviewPayload(req.body);
+
+  if (reviewPayload.message) {
+    return res.status(422).json({ message: reviewPayload.message });
+  }
+
+  let review;
+
+  try {
+    review = await prisma.comment.findUnique({
+      where: { id: reviewId },
+      select: {
+        id: true,
+        movieId: true,
+        userId: true,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to validate review" });
+  }
+
+  if (!review || review.movieId !== movieId) {
+    return res.status(404).json({ message: "Review not found" });
+  }
+
+  if (review.userId !== userId) {
+    return res.status(403).json({ message: "You can only update your own reviews" });
+  }
+
+  try {
+    await prisma.comment.update({
+      where: { id: reviewId },
+      data: {
+        text: reviewPayload.text,
+        rating: reviewPayload.rating,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to update review" });
+  }
+
+  let reviewSummary;
+
+  try {
+    reviewSummary = await getMovieReviewSummary(movieId);
+  } catch (err) {
+    return res.status(500).json({ message: "Unable to fetch updated reviews" });
+  }
 
   return res.status(200).json({
-    message: "Review added successfully",
-    comments: comments.map(serializeComment),
-    averageRating: ratingSummary.averageRating,
-    ratingsCount: ratingSummary.ratingsCount,
+    message: "Review updated successfully",
+    ...reviewSummary,
   });
 };
 
@@ -808,29 +917,16 @@ export const deleteMovieReview = async (req, res, next) => {
     return res.status(500).json({ message: "Unable to delete review" });
   }
 
-  let comments;
-  let ratingsMap;
+  let reviewSummary;
+
   try {
-    [comments, ratingsMap] = await Promise.all([
-      prisma.comment.findMany({
-        where: { movieId },
-        orderBy: { updatedAt: "desc" },
-      }),
-      getMovieRatingsMap([movieId]),
-    ]);
+    reviewSummary = await getMovieReviewSummary(movieId);
   } catch (err) {
     return res.status(500).json({ message: "Unable to fetch updated reviews" });
   }
 
-  const ratingSummary = ratingsMap[movieId] || {
-    averageRating: 0,
-    ratingsCount: 0,
-  };
-
   return res.status(200).json({
     message: "Review deleted successfully",
-    comments: comments.map(serializeComment),
-    averageRating: ratingSummary.averageRating,
-    ratingsCount: ratingSummary.ratingsCount,
+    ...reviewSummary,
   });
 };

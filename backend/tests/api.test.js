@@ -11,8 +11,10 @@ import {
 import { newBooking, reserveBooking } from "../controller/booking-controller.js";
 import {
   addMovie,
+  addMovieReview,
   deleteMovieReview,
   getAllMovies,
+  updateMovieReview,
 } from "../controller/movie-controller.js";
 import { __setStripeClientForTests } from "../lib/stripe.js";
 import { login, signup } from "../controller/user-controller.js";
@@ -203,7 +205,7 @@ test("reserveBooking creates a reservation without payment", async () => {
   const showtimeId = "showtime_2";
   const userId = "user_2";
   const bookingId = "booking_2";
-  const bookingDate = new Date("2026-05-10T20:00:00.000Z");
+  const bookingDate = new Date("2027-05-10T20:00:00.000Z");
 
   const movieDocument = {
     id: movieId,
@@ -761,6 +763,117 @@ test("deleteMovieReview removes the current user's review", async () => {
   assert.equal(res.body.comments.length, 0);
   assert.equal(res.body.averageRating, 0);
   assert.equal(res.body.ratingsCount, 0);
+});
+
+test("addMovieReview updates the current user's existing review", async () => {
+  process.env.SECRET_KEY = "test-secret-key";
+  const res = createResponseMock();
+  const token = jwt.sign({ id: "user_review_1" }, process.env.SECRET_KEY);
+  const updatedAt = new Date("2026-06-01T12:00:00.000Z");
+
+  stubMethod(prisma.movie, "findUnique", async () => ({
+    id: "movie_1",
+    title: "Interstellar",
+  }));
+  stubMethod(prisma.user, "findUnique", async () => ({
+    id: "user_review_1",
+    name: "Ion Popescu",
+    email: "ion@example.com",
+  }));
+  stubMethod(prisma.comment, "findFirst", async () => ({
+    id: "review_1",
+  }));
+  const updateStub = stubMethod(prisma.comment, "update", async ({ data }) => ({
+    id: "review_1",
+    movieId: "movie_1",
+    movieTitle: "Interstellar",
+    userId: "user_review_1",
+    userName: "Ion Popescu",
+    userEmail: "ion@example.com",
+    createdAt: updatedAt,
+    updatedAt,
+    ...data,
+  }));
+  stubMethod(prisma.comment, "findMany", async () => [
+    {
+      id: "review_1",
+      movieId: "movie_1",
+      movieTitle: "Interstellar",
+      userId: "user_review_1",
+      userName: "Ion Popescu",
+      userEmail: "ion@example.com",
+      text: "Great movie",
+      rating: 5,
+      createdAt: updatedAt,
+      updatedAt,
+    },
+  ]);
+  stubMethod(prisma.comment, "groupBy", async () => [
+    {
+      movieId: "movie_1",
+      _avg: { rating: 5 },
+      _count: { rating: 1 },
+    },
+  ]);
+
+  await addMovieReview(
+    {
+      params: { id: "movie_1" },
+      headers: { authorization: `Bearer ${token}` },
+      body: {
+        rating: 5,
+        comment: "Great movie",
+      },
+    },
+    res,
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, "Review updated successfully");
+  assert.equal(res.body.averageRating, 5);
+  assert.equal(res.body.ratingsCount, 1);
+  assert.equal(updateStub.mock.calls[0].arguments[0].where.id, "review_1");
+  assert.equal(updateStub.mock.calls[0].arguments[0].data.text, "Great movie");
+});
+
+test("updateMovieReview updates the current user's review", async () => {
+  process.env.SECRET_KEY = "test-secret-key";
+  const res = createResponseMock();
+  const token = jwt.sign({ id: "user_review_1" }, process.env.SECRET_KEY);
+
+  stubMethod(prisma.comment, "findUnique", async () => ({
+    id: "review_1",
+    movieId: "movie_1",
+    userId: "user_review_1",
+  }));
+  const updateStub = stubMethod(prisma.comment, "update", async ({ data }) => ({
+    id: "review_1",
+    ...data,
+  }));
+  stubMethod(prisma.comment, "findMany", async () => []);
+  stubMethod(prisma.comment, "groupBy", async () => []);
+
+  await updateMovieReview(
+    {
+      params: {
+        id: "movie_1",
+        reviewId: "review_1",
+      },
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+      body: {
+        rating: 4,
+        comment: "Updated review",
+      },
+    },
+    res,
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, "Review updated successfully");
+  assert.equal(updateStub.mock.calls[0].arguments[0].data.rating, 4);
+  assert.equal(updateStub.mock.calls[0].arguments[0].data.text, "Updated review");
 });
 
 test("getAllMovies sorts by price ascending and forwards release date range", async () => {

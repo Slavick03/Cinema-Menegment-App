@@ -10,6 +10,7 @@ import {
 } from "../api-helpers/api-helpers";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
+import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import {
   Button,
   Dialog,
@@ -220,6 +221,26 @@ const AdminProfile = () => {
               }}
             >
               {t("adminOpenAnalytics")}
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<PaletteRoundedIcon />}
+              onClick={() => navigate("/brand-settings")}
+              sx={{
+                mt: 1.5,
+                borderRadius: 999,
+                borderColor: "rgba(255,255,255,0.18)",
+                color: "white",
+                fontWeight: 800,
+                py: 1.2,
+                ":hover": {
+                  borderColor: "var(--theme-primary-color)",
+                  bgcolor: "rgba(255,255,255,0.06)",
+                },
+              }}
+            >
+              {t("adminOpenBrandSettings")}
             </Button>
           </Box>
         )}
